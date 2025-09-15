@@ -1,0 +1,99 @@
+# checks.yaml (примерный набор)
+- id: XSS-REFLECTED-001
+  name: Reflected XSS (basic reflection check)
+  severity: medium
+  safe: true
+  description: |
+    Проверяет отражение пользовательского ввода на странице без контекстного экранирования.
+  payloads:
+    - PTES_XSS_MARKER="<PTES_XSS_TEST>"
+  request:
+    method: GET
+    param_candidates: ["q","search","s","q[]","term"]
+  detection:
+    type: substring
+    value_source: payloads.PTES_XSS_MARKER
+  remediation: |
+    Выполнять контекстное экранирование/санитизацию вывода. Внедрить CSP и HttpOnly cookies.
+  tags: [xss, reflected, client]
+  references:
+    - "https://owasp.org/www-community/attacks/xss/"
+
+- id: SQL-INJECTION-ERROR-001
+  name: SQL Injection (basic error detection)
+  severity: critical
+  safe: true
+  description: |
+    Базовая проверка ошибок SQL-инъекции: добавляется одиночная кавычка и ищется характерная SQL ошибка или изменение отклика.
+  payloads:
+    - "'"
+    - "\""
+  request:
+    method: GET
+    param_candidates: ["id","user","item","product"]
+  detection:
+    type: regex_any
+    values:
+      - "SQL syntax.*MySQL"
+      - "you have an error in your sql syntax"
+      - "unclosed quotation mark after the character string"
+      - "pg::syntaxerror"
+  remediation: |
+    Использовать parameterized queries / prepared statements, ORM safe binding.
+  tags: [sqli, injection]
+  references:
+    - "https://owasp.org/www-community/attacks/SQL_Injection"
+
+- id: SSRF-BASIC-001
+  name: SSRF (external-collaborator detection)
+  severity: critical
+  safe: true
+  description: |
+    Проверка возможности сервера выполнить запрос по произвольному URL. Проверка работает через внешний collaborator URL,
+    который регистрирует входящие запросы (Burp Collaborator, OOB-server). Не пытайтесь запрашивать облачные метаданные без разрешения.
+  payloads:
+    - collaborator_url: "<<<TO_BE_FILLED_BY_CONTEXT>>>"
+  request:
+    method: GET
+    param_candidates: ["url","u","src","image","redirect"]
+  detection:
+    type: collaborator_oob
+  remediation: |
+    Валидировать/беллистить хосты, блокировать внутренние диапазоны, canonicalize hostnames.
+  tags: [ssrf, oob]
+  references:
+    - "https://owasp.org/www-community/attacks/Server_Side_Request_Forgery"
+
+- id: IDOR-001
+  name: IDOR / Broken Access Control (object enumeration)
+  severity: high
+  safe: true
+  description: |
+    Проверяет прямой доступ к объектам по инкрементальным/предсказуемым id. Требует авторизованной сессии для сравнения.
+  payloads:
+    - id_pattern: "numeric" # enum strategy: +/-1, small window
+  request:
+    method: GET
+    path_template: "/api/users/{id}"
+  detection:
+    type: response_difference
+    metrics: [status_code, body_similarity]
+  remediation: |
+    Проверять авторизацию на стороне сервера для каждого ресурса; связывать ресурс с владельцем.
+  tags: [idor, access-control]
+  references:
+    - "https://owasp.org/www-project-top-ten/2017/A5_2017-Broken_Access_Control"
+
+# Дополнительно (описания для вспомогательных чеков)
+- id: OPEN-REDIRECT-001
+  name: Open Redirect (basic)
+  severity: low
+  safe: true
+  description: |
+    Проверяет редиректы с параметром redirect/next и попытки отправки на внешние URL.
+  payloads:
+    - "https://example.com/ptes-redirect-test"
+  detection:
+    type: location_header_contains_payload
+  remediation: "Whitelist redirect targets; use relative paths."
+  tags: [redirect]
