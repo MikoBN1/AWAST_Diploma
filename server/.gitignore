@@ -1,0 +1,29 @@
+# Виртуальное окружение
+venv/
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyc
+
+# IDE / редакторы
+.vscode/
+.idea/
+
+# Логи
+*.log
+
+# Тесты и покрытия
+.coverage
+htmlcov/
+*.pytest_cache/
+.tox/
+.mypy_cache/
+.pytest_cache/
+
+# OS файлы
+.DS_Store
+Thumbs.db
