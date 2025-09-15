@@ -1,0 +1,16 @@
+services:
+  zap:
+    image: zaproxy/zap-stable:latest
+    container_name: zap
+    ports:
+      - "8080:8080"   # API
+    command: >
+      zap.sh -daemon
+      -host 0.0.0.0
+      -port 8080
+      -config api.addrs.addr.name=.*
+      -config api.addrs.addr.regex=true
+      -config api.key=changeme
+    volumes:
+      - ./zap:/zap/wrk
+    restart: unless-stopped

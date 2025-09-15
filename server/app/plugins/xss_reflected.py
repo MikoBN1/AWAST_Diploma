@@ -1,7 +1,5 @@
-# checks/xss_reflected.py
-import asyncio
 from typing import Dict, Any
-from common_helpers import make_request
+from plugins.common_helpers import make_request
 
 MARKER = "<PTES_XSS_TEST>"
 
