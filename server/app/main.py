@@ -11,27 +11,6 @@ app = FastAPI()
 DVWA_URL = "http://192.168.56.101/dvwa/"  # адрес DVWA
 ZAP_API_KEY = os.getenv("ZAP_API_KEY", "changeme")
 ZAP_API_URL = os.getenv("ZAP_API_URL", "http://localhost:8080")
-# простой маршрут
-@app.get("/")
-def read_root():
-    return {"message": "Hello, FastAPI is working!"}
-
-# пример с параметром
-@app.get("/hello/{name}")
-def say_hello(name: str):
-    return {"message": f"Hello, {name}!"}
-
-
-@app.post("/api/xss_reflected")
-async def run_xss_reflected():
-    context = {
-        "safe_mode": True,
-        # если у тебя есть авторизация — передай cookies: {"PHPSESSID": "..."}
-        # "auth": {"cookies": {"PHPSESSID": "abc..."}},
-        "param_candidates": ["name", "message", "id", "search"],
-        "headers": {"User-Agent": "PTESBot/1.0"}
-    }
-    return await xss_reflected_run('http://192.168.56.101/vulnerabilities/xss_r/', context)
 
 @app.get("/zap/spider")
 async def zap_spider(target: str = "http://192.168.56.101/dvwa/"):
@@ -79,6 +58,44 @@ async def zap_alerts():
             params={"apikey": ZAP_API_KEY}
         )
         return resp.json()
+
+
+@app.get("/zap/alerts/target")
+async def zap_alerts_with_evidence(baseurl: str = None):
+    params = {"apikey": ZAP_API_KEY}
+    if baseurl:
+        params["baseurl"] = baseurl
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{ZAP_API_URL}/JSON/core/view/alerts/",
+            params=params
+        )
+        data = resp.json()
+        alerts = data.get("alerts", [])
+
+        seen = set()
+        unique_alerts = []
+
+        for a in alerts:
+            key = (a.get("alert"), a.get("url"), a.get("param"))
+            if key not in seen:
+                seen.add(key)
+                unique_alerts.append({
+                    "alert": a.get("alert"),
+                    "risk": a.get("risk"),
+                    "confidence": a.get("confidence"),
+                    "url": a.get("url"),
+                    "param": a.get("param"),
+                    "evidence": a.get("evidence"),
+                    "solution": a.get("solution"),
+                    "reference": a.get("reference"),
+                    "tags": a.get("tags"),
+                    "cweid": a.get("cweid"),
+                })
+        filtered = [a for a in unique_alerts if a.get("evidence")]
+
+        return {"count": len(filtered), "alerts": filtered}
 
 
 @app.get("/zap/alerts/summary")

@@ -1,16 +1,10 @@
 services:
   zap:
-    image: zaproxy/zap-stable:latest
+    build: .
+    image: my-zap:latest
     container_name: zap
     ports:
-      - "8080:8080"   # API
-    command: >
-      zap.sh -daemon
-      -host 0.0.0.0
-      -port 8080
-      -config api.addrs.addr.name=.*
-      -config api.addrs.addr.regex=true
-      -config api.key=changeme
+      - "8080:8080"
     volumes:
-      - ./zap:/zap/wrk
+      - ./zap:/zap/wrk   # опционально - для сессий/репортов
     restart: unless-stopped
