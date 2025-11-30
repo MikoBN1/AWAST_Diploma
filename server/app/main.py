@@ -3,8 +3,9 @@ import os
 from dotenv import load_dotenv
 import httpx
 from fastapi import FastAPI
-from plugins.xss_reflected import run as xss_reflected_run
-# создаём приложение
+
+from schemas.zap_scanner_schema import RequestBody
+
 load_dotenv()
 app = FastAPI()
 
@@ -12,12 +13,12 @@ DVWA_URL = "http://192.168.56.101/dvwa/"  # адрес DVWA
 ZAP_API_KEY = os.getenv("ZAP_API_KEY", "changeme")
 ZAP_API_URL = os.getenv("ZAP_API_URL", "http://localhost:8080")
 
-@app.get("/zap/spider")
-async def zap_spider(target: str = "http://192.168.56.101/dvwa/"):
+@app.post("/zap/spider")
+async def zap_spider(target: RequestBody):
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"{ZAP_API_URL}/JSON/spider/action/scan/",
-            params={"apikey": ZAP_API_KEY, "url": target}
+            params={"apikey": ZAP_API_KEY, "url": target.target}
         )
         return resp.json()
 
@@ -31,13 +32,13 @@ async def zap_spider_status(scan_id: str):
         return resp.json()
 
 
-@app.get("/zap/scan")
-async def zap_scan(target: str = "http://192.168.56.101/dvwa/"):
+@app.post("/zap/scan")
+async def zap_scan(target: RequestBody):
     async with httpx.AsyncClient() as client:
         # запускаем активный скан
         resp = await client.get(
             f"{ZAP_API_URL}/JSON/ascan/action/scan/",
-            params={"apikey": ZAP_API_KEY, "url": target}
+            params={"apikey": ZAP_API_KEY, "url": target.target}
         )
         return resp.json()
 

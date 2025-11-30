@@ -1,6 +1,5 @@
 from typing import Dict, Any
-from plugins.common_helpers import make_request
-
+from common_helpers import make_request
 MARKER = "<PTES_XSS_TEST>"
 
 async def run(target: str, context: Dict[str, Any]) -> Dict[str, Any]:
