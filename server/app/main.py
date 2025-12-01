@@ -107,3 +107,12 @@ async def zap_alerts_summary():
             params={"apikey": ZAP_API_KEY}
         )
         return resp.json()
+
+@app.get("/zap/abort/scan/{scan_id}")
+async def zap_abort(scan_id: str):
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{ZAP_API_URL}/JSON/ascan/action/stop/",
+            params={"apikey": ZAP_API_KEY, "scanId": scan_id}
+        )
+        return resp.json()
