@@ -12,7 +12,6 @@ from services.playwright_service import login_and_save_session
 
 load_dotenv()
 app = FastAPI()
-app = FastAPI()
 
 llm_service = LLMService()
 exploiter_service = ExploiterService()
