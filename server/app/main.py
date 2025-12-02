@@ -2,14 +2,21 @@ import asyncio
 import os
 from dotenv import load_dotenv
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
+from schemas.exploiter_schema import ExploiterRequestBody
 from schemas.zap_scanner_schema import RequestBody
+from services.exploiter_service import ExploiterService
+from services.llm_service import LLMService
+from services.playwright_service import login_and_save_session
 
 load_dotenv()
 app = FastAPI()
+app = FastAPI()
 
-DVWA_URL = "http://192.168.56.101/dvwa/"  # адрес DVWA
+llm_service = LLMService()
+exploiter_service = ExploiterService()
+
 ZAP_API_KEY = os.getenv("ZAP_API_KEY", "changeme")
 ZAP_API_URL = os.getenv("ZAP_API_URL", "http://localhost:8080")
 
@@ -116,3 +123,57 @@ async def zap_abort(scan_id: str):
             params={"apikey": ZAP_API_KEY, "scanId": scan_id}
         )
         return resp.json()
+
+@app.post("/exploiter/run")
+async def exploiter_run(body: ExploiterRequestBody):
+    try:
+        payloads_task = asyncio.create_task(
+            llm_service.ask_for_payloads(body.target, body.vuln_type, body.params)
+        )
+
+        print(f"[+] Логинимся в {body.login_url} как {body.username}...")
+        cookies = login_and_save_session(
+            login_url=body.login_url.rsplit("/", 1)[0] + "/login.php",
+            username=body.username,
+            password=body.password,
+            headless=True,
+            slow_mo=1
+        )
+        print("[+] Успешно залогинен!")
+
+        payloads = await payloads_task
+        if not payloads:
+            payloads = ["<script>alert(1)</script>", "\"'><img src=x onerror=alert(1)>"]
+
+        print(f"[+] Получено {len(payloads)} payload'ов от ИИ")
+
+        for payload in payloads:
+            success, message, curl_command = exploiter_service.try_exploit(
+                vuln_type=body.vuln_type,
+                url=body.target,
+                method=body.method,
+                param=body.params,
+                data={"payloads": payload},
+                cookies=cookies,
+            )
+            print(message)
+            if success:
+                return {
+                    "status": "confirmed",
+                    "vuln_type": body.vuln_type,
+                    "target": body.target,
+                    "parameter": body.params,
+                    "working_payload": payload,
+                    "proof": message,
+                    "curl": curl_command,
+                    "message": "Уязвимость успешно подтверждена и эксплуатирована!"
+                }
+
+        return {
+            "status": "potential",
+            "message": "Ни один payload не сработал. Возможно, нужна ручная проверка.",
+            "tried_payloads": payloads[:10]
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при эксплуатации: {str(e)}")
