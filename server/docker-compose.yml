@@ -1,3 +1,5 @@
+version: "3.8"
+
 services:
   zap:
     build: .
@@ -6,5 +8,13 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./zap:/zap/wrk   # опционально - для сессий/репортов
+      - ./zap:/zap/wrk
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4g
+    environment:
+      - ZAP_MODE=daemon
+      - ZAP_PORT=8080
