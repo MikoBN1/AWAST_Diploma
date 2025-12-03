@@ -1,26 +1,48 @@
 import asyncio
 import os
+from datetime import datetime
+
 from dotenv import load_dotenv
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 
 from schemas.exploiter_schema import ExploiterRequestBody
 from schemas.report_schema import VulnerabilityReport
 from schemas.zap_scanner_schema import RequestBody
+from services.database_service import AsyncDatabaseService
 from services.exploiter_service import ExploiterService
 from services.llm_service import LLMService
 from services.playwright_service import login_and_save_session
 from services.report_service import ReportService
-
+from fastapi.middleware.cors import CORSMiddleware
+from core.database import init_models, async_session
+from models.scan_model import Scan
+from models.vulnerability_model import Vulnerability
+from schemas.report_schema import Vulnerability as VulnerabilitySchema
 load_dotenv()
 app = FastAPI()
 
 llm_service = LLMService()
 exploiter_service = ExploiterService()
 report_service = ReportService()
+database_service = AsyncDatabaseService(async_session)
 
 ZAP_API_KEY = os.getenv("ZAP_API_KEY", "changeme")
 ZAP_API_URL = os.getenv("ZAP_API_URL", "http://localhost:8080")
+
+@app.on_event("startup")
+async def startup_event():
+    await init_models()
+
+origins = (["http://localhost:5173", "http://127.0.0.1:5173"])
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.post("/zap/spider")
 async def zap_spider(target: RequestBody):
@@ -42,14 +64,74 @@ async def zap_spider_status(scan_id: str):
 
 
 @app.post("/zap/scan")
-async def zap_scan(target: RequestBody):
+async def zap_scan(target: RequestBody, background_tasks: BackgroundTasks):
+    # создаем запись скана в БД
+    scan_data = Scan(target=target.target, created_at=datetime.utcnow())
+    created_scan = await database_service.create(scan_data)
+
+    # запускаем сканирование через ZAP
     async with httpx.AsyncClient() as client:
-        # запускаем активный скан
         resp = await client.get(
             f"{ZAP_API_URL}/JSON/ascan/action/scan/",
-            params={"apikey": ZAP_API_KEY, "url": target.target}
+            params={"apikey": ZAP_API_KEY, "url": target.target},
         )
-        return resp.json()
+        data = resp.json()
+
+    # передаем в фоновую задачу scan_id и url
+    background_tasks.add_task(run_scan, created_scan.scan_id, target.target, data.get("scan"))
+
+    # возвращаем фронту сразу
+    return {"scan_id": created_scan.scan_id, "scan_index": data.get("scan")}
+
+
+
+async def run_scan(scan_id: int, target_url: str, scan_index: str):
+    try:
+        async with httpx.AsyncClient() as client:
+            max_retries = 60
+            for _ in range(max_retries):
+                status_resp = await client.get(
+                    f"{ZAP_API_URL}/JSON/ascan/view/status/",
+                    params={"apikey": ZAP_API_KEY, "scanId": scan_index}
+                )
+                status = status_resp.json()
+                progress = int(status.get("status", 0))
+                if progress >= 100:
+                    break
+                await asyncio.sleep(5)
+            else:
+                await database_service.update(
+                    Scan,
+                    {"scan_id": scan_id},
+                    {"status": "error"}
+                )
+                return
+
+            resp = await client.get(
+                f"{ZAP_API_URL}/JSON/core/view/alerts/",
+                params={"apikey": ZAP_API_KEY, "baseurl": target_url}
+            )
+            data = resp.json()
+            vulnerabilities = [VulnerabilitySchema(**v) for v in data.get("alerts", [])]
+
+            for vuln in vulnerabilities:
+                vuln_data = vuln.model_dump()
+                vuln_data["url"] = str(vuln_data["url"])
+                await database_service.create(Vulnerability(**vuln_data, scan_id=scan_id))
+
+            await database_service.update(
+                Scan,
+                {"scan_id": scan_id},
+                {"status": "done"}
+            )
+
+    except Exception as e:
+        await database_service.update(
+            Scan,
+            {"scan_id": scan_id},
+            {"status": "error"}
+        )
+        print(f"[!] Ошибка в run_scan: {e}")
 
 @app.get("/zap/scan_status/{scan_id}")
 async def zap_scan_status(scan_id: str):
