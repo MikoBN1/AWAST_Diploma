@@ -5,16 +5,19 @@ import httpx
 from fastapi import FastAPI, HTTPException
 
 from schemas.exploiter_schema import ExploiterRequestBody
+from schemas.report_schema import VulnerabilityReport
 from schemas.zap_scanner_schema import RequestBody
 from services.exploiter_service import ExploiterService
 from services.llm_service import LLMService
 from services.playwright_service import login_and_save_session
+from services.report_service import ReportService
 
 load_dotenv()
 app = FastAPI()
 
 llm_service = LLMService()
 exploiter_service = ExploiterService()
+report_service = ReportService()
 
 ZAP_API_KEY = os.getenv("ZAP_API_KEY", "changeme")
 ZAP_API_URL = os.getenv("ZAP_API_URL", "http://localhost:8080")
@@ -176,3 +179,7 @@ async def exploiter_run(body: ExploiterRequestBody):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при эксплуатации: {str(e)}")
+
+@app.post("/report/new")
+async def report_new(body: VulnerabilityReport):
+    return report_service.generate_pdf_report(body.vulns, "vulnerability_report.pdf")
