@@ -1,11 +1,19 @@
+import uuid
+
+from core.database import async_session
 import os
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 
+from models.scan_model import Scan
+from services.database_service import AsyncDatabaseService
+
 styles = getSampleStyleSheet()
 styles['Normal'].fontName = 'Times-Roman'
 styles['Heading2'].fontName = 'Times-Bold'
+
+database_service = AsyncDatabaseService(async_session)
 
 class ReportService:
     @staticmethod
@@ -44,3 +52,12 @@ class ReportService:
         pdf.build(story)
 
         return output_path
+
+
+    @staticmethod
+    async def save_report_db(scan_id:str, report_id:str):
+        await database_service.update(Scan, {"scan_id": scan_id}, {"report_id": report_id})
+
+    @staticmethod
+    async def update_report_status(scan_id: str, status: str):
+        await database_service.update(Scan, {"scan_id": scan_id}, {"report_status": status})

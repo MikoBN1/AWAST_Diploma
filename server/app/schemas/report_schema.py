@@ -16,3 +16,9 @@ class Vulnerability(BaseModel):
 
 class VulnerabilityReport(BaseModel):
     vulns: List[Vulnerability]
+
+class ReportRequest(BaseModel):
+    scan_id: str
+
+class DownloadReportRequest(BaseModel):
+    report_id: str

@@ -1,13 +1,15 @@
 import asyncio
 import os
+import uuid
 from datetime import datetime
 
 from dotenv import load_dotenv
 import httpx
 from fastapi import FastAPI, HTTPException, BackgroundTasks
-
+from starlette.responses import FileResponse
+from pathlib import Path
 from schemas.exploiter_schema import ExploiterRequestBody
-from schemas.report_schema import VulnerabilityReport
+from schemas.report_schema import VulnerabilityReport, ReportRequest, DownloadReportRequest
 from schemas.zap_scanner_schema import RequestBody
 from services.database_service import AsyncDatabaseService
 from services.exploiter_service import ExploiterService
@@ -263,5 +265,34 @@ async def exploiter_run(body: ExploiterRequestBody):
         raise HTTPException(status_code=500, detail=f"Ошибка при эксплуатации: {str(e)}")
 
 @app.post("/report/new")
-async def report_new(body: VulnerabilityReport):
-    return report_service.generate_pdf_report(body.vulns, "vulnerability_report.pdf")
+async def report_new(body: ReportRequest):
+    scan_data = await database_service.get(Scan, scan_id=body.scan_id)
+
+    if scan_data.report_id:
+        return {"report_id":scan_data.report_id}
+
+    report_id = str(uuid.uuid4())
+    await report_service.update_report_status(body.scan_id, "pending")
+    vulns = await database_service.get_all(Vulnerability, scan_id=body.scan_id)
+    path = report_service.generate_pdf_report(vulns, f"{report_id}.pdf")
+
+    if path:
+        await report_service.save_report_db(body.scan_id, report_id)
+        await report_service.update_report_status(body.scan_id, "done")
+        return {"report_id": report_id}
+
+    return {"message": "Error while generating report.pdf"}
+
+@app.post("/report/download")
+async def report_new(body: DownloadReportRequest):
+    scan_data = await database_service.get(Scan, report_id=body.report_id)
+
+    if scan_data.report_id:
+        pdf_path = Path(f"static/pdf/{body.report_id}.pdf")
+        return FileResponse(
+            pdf_path,
+            media_type="application/pdf",
+            filename="vulnerability_report.pdf"
+        )
+
+    return {"message":"Error while downloading report.pdf"}
