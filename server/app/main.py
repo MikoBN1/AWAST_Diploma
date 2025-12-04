@@ -2,12 +2,15 @@ import asyncio
 import os
 import uuid
 from datetime import datetime
-
+from controllers import user_controller, auth_controller
 from dotenv import load_dotenv
 import httpx
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from starlette.responses import FileResponse
 from pathlib import Path
+
+from core.security import get_current_user
+from models.users_model import User
 from schemas.exploiter_schema import ExploiterRequestBody
 from schemas.report_schema import VulnerabilityReport, ReportRequest, DownloadReportRequest
 from schemas.zap_scanner_schema import RequestBody
@@ -66,12 +69,7 @@ async def zap_spider_status(scan_id: str):
 
 
 @app.post("/zap/scan")
-async def zap_scan(target: RequestBody, background_tasks: BackgroundTasks):
-    # создаем запись скана в БД
-    scan_data = Scan(target=target.target, created_at=datetime.utcnow())
-    created_scan = await database_service.create(scan_data)
-
-    # запускаем сканирование через ZAP
+async def zap_scan(target: RequestBody, background_tasks: BackgroundTasks, user: User=Depends(get_current_user)):
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"{ZAP_API_URL}/JSON/ascan/action/scan/",
@@ -79,13 +77,11 @@ async def zap_scan(target: RequestBody, background_tasks: BackgroundTasks):
         )
         data = resp.json()
 
-    # передаем в фоновую задачу scan_id и url
-    background_tasks.add_task(run_scan, created_scan.scan_id, target.target, data.get("scan"))
+    scan_data = Scan(target=target.target, created_at=datetime.utcnow(), zap_index=int(data.get("scan")), user_id=user.user_id)
+    created_scan = await database_service.create(scan_data)
+    background_tasks.add_task(run_scan, created_scan.scan_id, target.target, str(created_scan.zap_index))
 
-    # возвращаем фронту сразу
     return {"scan_id": created_scan.scan_id, "scan_index": data.get("scan")}
-
-
 
 async def run_scan(scan_id: int, target_url: str, scan_index: str):
     try:
@@ -296,3 +292,6 @@ async def report_new(body: DownloadReportRequest):
         )
 
     return {"message":"Error while downloading report.pdf"}
+
+app.include_router(user_controller.router, prefix="/api")
+app.include_router(auth_controller.router, prefix="/api")
