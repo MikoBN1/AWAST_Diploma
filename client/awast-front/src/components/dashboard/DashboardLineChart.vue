@@ -34,9 +34,6 @@ const chartData = computed(() => {
   const labels = props.items.map(i => i.created_at)
   const dataValues = props.items.map(i => i.count)
 
-  const styles = getComputedStyle(document.documentElement)
-  const getColor = (key: string) => styles.getPropertyValue(key).trim()
-
   return {
     labels,
     datasets: [
