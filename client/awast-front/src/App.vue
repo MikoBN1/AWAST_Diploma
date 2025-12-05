@@ -11,46 +11,20 @@ const showHeader = computed(() => !route.meta?.hideHeader)
   <div>
     <HeaderComponent v-if="showHeader"/>
   </div>
-  <RouterView />
+  <div class="container-fluid">
+    <RouterView />
+  </div>
 </template>
 
 <style scoped>
-.left-content {
-  display: flex;
-  gap: 32px;
-}
-.sidebar{
-  margin-right: 32px;
-}
-.card{
-  background-color: var(--bg-color);
-}
-.main{
-  margin-top: 70px;
-  min-height: calc(100vh - 70px);
-  padding-bottom: 24px;
-}
 .container-fluid{
-  max-width: calc(88vw - 250px);
+  max-width: 96vw;
   margin: 0 auto;
 }
 
 @media screen and (min-width: 1920px){
   .container-fluid{
     max-width: 1400px;
-  }
-}
-
-@media screen and (max-width: 1080px){
-  .container-fluid{
-    max-width: 90vw;
-  }
-  .sidebar{
-    margin: 0;
-    display: none;
-  }
-  .main{
-    padding-left: 0 !important;
   }
 }
 

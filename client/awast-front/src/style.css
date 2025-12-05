@@ -10,6 +10,18 @@
     --main-black: #101828;
     --text-color: #101828;
     --layout: #fff;
+    --red-severity-bg: rgba(231, 76, 60, 0.2);
+    --red-severity-text: #E74C3C;
+    --green-severity-bg: rgba(46, 204, 113, 0.2);
+    --green-severity-text: #27AE60;
+    --orange-severity-bg: rgba(249, 115, 22, 0.2);
+    --orange-severity-text: #F97316;
+    --blue-severity-bg: #3498DB33;
+    --blue-severity-text: #3498DB;
+    --critical-severity: #7F0B0B;
+    --high-severity: #4D6EF5;
+    --medium-severity: #FC9D1E;
+    --low-severity: #0BDC91;
 }
 
 body{
