@@ -59,17 +59,20 @@ const chartOptions = {
   plugins: {
     legend: {
       position: 'bottom' as const,
+      labels: {
+        padding: 20,
+      }
     },
     title: {
       display: false,
       text: 'Vulnerability Breakdown'
     }
-  }
+  },
 }
 </script>
 
 <template>
-  <v-card :width="props.width">
+  <v-card :width="props.width" height="100%">
     <v-card-text>
       <div class="pie-chart">
         <h1>Vulnerability Distribution</h1>
@@ -89,10 +92,6 @@ const chartOptions = {
   </v-card>
 </template>
 <style scoped>
-.pie-chart-container {
-  width: 100%;
-  max-width: 100%;
-}
 .progress{
   display: flex;
   justify-content: center;
@@ -107,10 +106,6 @@ h1{
   margin-top: 0;
   margin-bottom: 16px;
 }
-.no-vulns{
-  width: 250px;
-  margin-bottom: 16px;
-}
 .no-vulns-wrapper{
   display: flex;
   justify-content: center;
@@ -122,9 +117,6 @@ h3{
   color: var(--sub-text);
 }
 @media screen and (max-width: 1400px) {
-  .pie-chart-container{
-    width: 100% !important;
-  }
   canvas{
     max-width: 500px;
     max-height: 500px;
