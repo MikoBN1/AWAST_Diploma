@@ -4,10 +4,17 @@
     --input-bg: #F2F2F2;
     --button-bg: #007AFF;
     --btn-text: #fff;
+    --card-color: #fff;
+    --h1-color: #101828;
+    --sub-text: #4A5565;
+    --main-black: #101828;
+    --text-color: #101828;
+    --layout: #fff;
 }
 
 body{
     font-family: "ABeeZee", sans-serif;
+    background-color: #F3F6FE;
 }
 
 /* Сбрасываем желтый фон автозаполнения в Chrome, Safari */

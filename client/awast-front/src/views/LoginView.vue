@@ -1,8 +1,16 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import loginImage from '@/assets/img/login-left-side.jpeg'
-import logo from '@/assets/img/logo.svg'
+import loginImage from '../assets/img/login-left-side.jpeg'
+import logo from '../assets/img/logo.svg'
+import { useRouter } from 'vue-router'
+
 const visible = ref(false)
+const router = useRouter()
+
+function signIn(){
+ router.push('/dashboard')
+}
+
 </script>
 
 <template>
@@ -56,7 +64,9 @@ const visible = ref(false)
                   size="x-large"
                   class="btn-text"
                   block
-                  elevation="0">Sign In</v-btn>
+                  elevation="0"
+                  @click="signIn"
+              >Sign In</v-btn>
             </v-form>
           </v-card-text>
         </v-card>
