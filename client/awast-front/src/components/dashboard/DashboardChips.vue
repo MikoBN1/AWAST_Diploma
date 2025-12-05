@@ -14,7 +14,7 @@
         </v-card-title>
       </v-card-item>
       <v-card-text>
-        <p class="sub-text mb-2">Total Scans</p>
+        <p class="sub-text mb-2">Total Vulnerabilities</p>
         <p class="value">1,247</p>
       </v-card-text>
     </v-card>
@@ -29,7 +29,7 @@
         </v-card-title>
       </v-card-item>
       <v-card-text>
-        <p class="sub-text mb-2">High</p>
+        <p class="sub-text mb-2">High Vulnerabilities</p>
         <p class="value">47</p>
       </v-card-text>
     </v-card>
@@ -44,8 +44,8 @@
         </v-card-title>
       </v-card-item>
       <v-card-text>
-        <p class="sub-text mb-2">Medium</p>
-        <p class="value">1,247</p>
+        <p class="sub-text mb-2">Medium Vulnerabilities</p>
+        <p class="value">247</p>
       </v-card-text>
     </v-card>
   </v-col>
@@ -59,8 +59,8 @@
         </v-card-title>
       </v-card-item>
       <v-card-text>
-        <p class="sub-text mb-2">Low</p>
-        <p class="value">1,247</p>
+        <p class="sub-text mb-2">Low Vulnerabilities</p>
+        <p class="value">1,022</p>
       </v-card-text>
     </v-card>
   </v-col>
