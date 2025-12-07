@@ -46,6 +46,7 @@ import logo from '../../assets/img/logo.svg'
   background-color: var(--layout);
   height: 70px;
   left: 0;
+  padding: 0 1vw;
   margin-right: 0;
   position: fixed;
   top: 0;
