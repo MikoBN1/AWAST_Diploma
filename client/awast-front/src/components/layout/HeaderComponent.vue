@@ -15,8 +15,8 @@ import logo from '../../assets/img/logo.svg'
         </v-col>
         <v-col class="d-flex align-center py-0 ga-3 justify-center">
           <router-link class="link" to="/dashboard">Dashboard</router-link>
-          <router-link class="link" to="/dashboard">Scanner</router-link>
-          <router-link class="link" to="/dashboard">Scan History</router-link>
+          <router-link class="link" to="/scanner">Scanner</router-link>
+          <router-link class="link" to="/scanner/history">Scan History</router-link>
         </v-col>
         <v-col>
           <v-row class="ga-5 pr-0 ma-0" justify="end">
