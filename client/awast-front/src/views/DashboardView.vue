@@ -22,13 +22,13 @@ const items = [
     <v-col cols="12" md="4" class="pl-0 pb-0">
       <DashboardPieChart :severityCounts="{high:12, medium: 41, low:13}" width="450"/>
     </v-col>
-    <v-col cols="12" md="8" class="pb-0">
+    <v-col cols="12" md="8" class="pb-0 pr-0">
       <DashboardLineChart width="100%" :items="items"/>
     </v-col>
   </v-row>
 
   <v-row class="ma-0 mb-16">
-    <v-col cols="12" md="12" class="pl-0 pb-0">
+    <v-col cols="12" md="12" class="px-0 pb-0">
       <ScansHistory />
     </v-col>
   </v-row>
