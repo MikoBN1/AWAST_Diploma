@@ -2,6 +2,7 @@
 import {ref} from "vue";
 import ScanInfoBlocks from "../components/scanner/ScanInfoBlocks.vue";
 import ScanVulnerabilitiesProgress from "../components/scanner/ScanVulnerabilitiesProgress.vue";
+import ScanVulnerabilitiyList from "../components/scanner/ScanVulnerabilitiyList.vue";
 const model = ref(true)
 const visible = ref(false)
 </script>
@@ -74,6 +75,10 @@ const visible = ref(false)
 
   <v-row justify="center" class="mb-8">
     <ScanVulnerabilitiesProgress/>
+  </v-row>
+
+  <v-row justify="center" class="mb-8">
+    <ScanVulnerabilitiyList/>
   </v-row>
 </template>
 
