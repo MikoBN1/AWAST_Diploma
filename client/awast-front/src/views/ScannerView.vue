@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import {ref} from "vue";
+import ScanInfoBlocks from "../components/scanner/ScanInfoBlocks.vue";
+import ScanVulnerabilitiesProgress from "../components/scanner/ScanVulnerabilitiesProgress.vue";
 const model = ref(true)
 const visible = ref(false)
 </script>
@@ -58,10 +60,20 @@ const visible = ref(false)
           ></v-text-field>
         </v-card-text>
         <v-card-actions>
-          <v-btn variant="flat" color="var(--button-bg)" theme="dark" class="start-btn">Start Scan</v-btn>
+          <v-btn variant="flat" color="var(--button-bg)" theme="dark" class="start-btn">
+            Start Scan
+          </v-btn>
         </v-card-actions>
       </v-card-item>
     </v-card>
+  </v-row>
+
+  <v-row justify="center" class="mb-8 ga-4">
+    <ScanInfoBlocks/>
+  </v-row>
+
+  <v-row justify="center" class="mb-8">
+    <ScanVulnerabilitiesProgress/>
   </v-row>
 </template>
 
