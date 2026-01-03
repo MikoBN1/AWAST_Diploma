@@ -1,7 +1,9 @@
-import {createRouter, createWebHistory} from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from "../views/LoginView.vue";
 import DashboardView from "../views/DashboardView.vue";
 import ScannerView from "../views/ScannerView.vue";
+
+import ScanHistoryView from "../views/ScanHistoryView.vue";
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL || 'localhost'),
@@ -22,6 +24,12 @@ const router = createRouter({
             path: '/scanner',
             name: 'scanner',
             component: ScannerView,
+            meta: { hideHeader: false }
+        },
+        {
+            path: '/scanner/history',
+            name: 'scanner_history',
+            component: ScanHistoryView,
             meta: { hideHeader: false }
         }
     ]

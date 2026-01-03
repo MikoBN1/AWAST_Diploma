@@ -1,0 +1,22 @@
+{
+  "cookies": [
+    {
+      "domain": "192.168.1.105",
+      "httpOnly": false,
+      "name": "security",
+      "path": "/",
+      "sameSite": "Lax",
+      "secure": false,
+      "value": "high"
+    },
+    {
+      "domain": "192.168.1.105",
+      "httpOnly": false,
+      "name": "PHPSESSID",
+      "path": "/",
+      "sameSite": "Lax",
+      "secure": false,
+      "value": "btdhkl96u7ksbgca76bsus67c5"
+    }
+  ]
+}
