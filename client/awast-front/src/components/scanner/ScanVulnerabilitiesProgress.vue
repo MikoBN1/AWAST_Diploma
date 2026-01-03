@@ -1,66 +1,191 @@
 <script setup lang="ts">
-  import {ref} from "vue";
+import { ref } from "vue";
 
-  const vulns = ref([
-    {
-      severity: "high",
-      value: "23",
-      color: "red"
-    },
-    {
-      severity: "medium",
-      value: "10",
-      color: "orange"
-    },
-    {
-      severity: "low",
-      value: "2",
-      color: "green"
-    },
-  ])
+const vulns = ref([
+  {
+    severity: "High",
+    value: 23,
+    color: "#ef4444",
+    gradient: "linear-gradient(90deg, #ef4444 0%, #dc2626 100%)",
+  },
+  {
+    severity: "Medium",
+    value: 10,
+    color: "#f59e0b",
+    gradient: "linear-gradient(90deg, #f59e0b 0%, #d97706 100%)",
+  },
+  {
+    severity: "Low",
+    value: 2,
+    color: "#10b981",
+    gradient: "linear-gradient(90deg, #10b981 0%, #059669 100%)",
+  },
+])
+
+const totalVulns = ref(35);
+const scanType = ref("Full");
 </script>
 
 <template>
-<v-card>
-  <v-card-title>
-    <h4>Vulnerabilities Summary</h4>
-    <p class="sub-text mb-3">Count of how much vulns and what severity was found</p>
-  </v-card-title>
-  <v-card-text>
-    <div v-for="item in vulns" :key="item.severity" class="mb-6">
-      <div class="d-flex justify-space-between mb-2">
-        <div>
-          <v-avatar size="10" :color="item.color" class="mr-3"></v-avatar>
-          <span class="text-capitalize">{{ item.severity }}</span>
+  <v-card class="progress-card glass-card" elevation="0">
+    <v-card-text class="pa-6">
+      <div class="card-header mb-6">
+        <div class="d-flex align-center mb-2">
+          <v-icon icon="mdi-shield-alert" color="primary" size="28" class="mr-3"></v-icon>
+          <h3 class="text-h5 font-weight-bold text-slate-800">Vulnerabilities Summary</h3>
         </div>
-        <span>{{ item.value }}</span>
+        <p class="text-body-2 text-grey-darken-1 ml-11">
+          Distribution of security issues found by severity level
+        </p>
       </div>
-      <v-progress-linear :height="6" rounded :model-value="item.value" max="45"></v-progress-linear>
-    </div>
-    <v-divider></v-divider>
-    <div class="d-flex justify-space-between pt-4 mb-4">
-      <p class="sub-text">Total Vulnerabilities Found</p>
-      <p>45</p>
-    </div>
-    <div class="d-flex justify-space-between ga-4">
-        <v-col class="d-flex justify-center flex-column align-center rounded-lg" style="background-color: #e3e3e3">
-          <h2>{{'23'}}</h2>
-          <p class="sub-text">High Vulnerabilities</p>
-        </v-col>
-        <v-col class="d-flex justify-center flex-column align-center rounded-lg" style="background-color: #e3e3e3">
-          <h2>{{'Full'}}</h2>
-          <p class="sub-text">Scan Type</p>
-        </v-col>
-    </div>
-  </v-card-text>
-</v-card>
+
+      <!-- Progress Bars -->
+      <div class="vulnerabilities-list mb-5">
+        <div v-for="item in vulns" :key="item.severity" class="vuln-item mb-5">
+          <div class="d-flex justify-space-between align-center mb-2">
+            <div class="d-flex align-center">
+              <div class="severity-badge" :class="`severity-${item.severity.toLowerCase()}`"></div>
+              <span class="severity-label">{{ item.severity }}</span>
+            </div>
+            <span class="severity-value">{{ item.value }} found</span>
+          </div>
+          <v-progress-linear
+            :model-value="(item.value / totalVulns) * 100"
+            :color="item.color"
+            height="8"
+            rounded
+            class="custom-progress"
+          ></v-progress-linear>
+        </div>
+      </div>
+
+      <v-divider class="my-5"></v-divider>
+
+      <!-- Stats Footer -->
+      <div class="stats-footer">
+        <v-row>
+          <v-col cols="6">
+            <div class="stat-card">
+              <div class="stat-icon-wrapper gradient-primary mb-3">
+                <v-icon icon="mdi-bug-outline" color="white" size="24"></v-icon>
+              </div>
+              <div class="stat-value">{{ totalVulns }}</div>
+              <div class="stat-label">Total Vulnerabilities</div>
+            </div>
+          </v-col>
+          <v-col cols="6">
+            <div class="stat-card">
+              <div class="stat-icon-wrapper gradient-secondary mb-3">
+                <v-icon icon="mdi-radar" color="white" size="24"></v-icon>
+              </div>
+              <div class="stat-value">{{ scanType }}</div>
+              <div class="stat-label">Scan Type</div>
+            </div>
+          </v-col>
+        </v-row>
+      </div>
+    </v-card-text>
+  </v-card>
 </template>
 
 <style scoped>
-.sub-text{
-  color: var(--sub-text);
+.progress-card {
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 20px;
+  transition: all 0.3s ease;
 }
-p{
-  font-size: 16px;
+
+.progress-card:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.9) !important;
+}
+
+.severity-badge {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.severity-high {
+  background: #ef4444;
+}
+
+.severity-medium {
+  background: #f59e0b;
+}
+
+.severity-low {
+  background: #10b981;
+}
+
+.severity-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #334155;
+}
+
+.severity-value {
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.custom-progress {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.stat-card {
+  text-align: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+  height: 100%;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+}
+
+.stat-icon-wrapper {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.gradient-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.gradient-secondary {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 </style>

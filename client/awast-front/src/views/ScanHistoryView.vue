@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 // Mock Data for UI Design
 const search = ref('');
+const router = useRouter();
 const headers = [
   { title: 'Status', key: 'status', sortable: true },
   { title: 'Target URL', key: 'target', sortable: true },
@@ -55,6 +57,10 @@ const getStatusColor = (status: string) => {
     default: return 'grey';
   }
 };
+
+const initiateNewScan = () => {
+  router.push('/scanner');
+}
 </script>
 
 <template>
@@ -70,6 +76,7 @@ const getStatusColor = (status: string) => {
         size="large"
         variant="elevated"
         class="text-none glow-button"
+        @click="initiateNewScan"
       >
         New Scan
       </v-btn>
