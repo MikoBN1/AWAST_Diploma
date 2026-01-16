@@ -28,7 +28,8 @@ export const useAuthStore = defineStore('auth', {
         },
         async fetchProfile() {
             try {
-                const user = await userService.getMe();
+                // const user = await userService.getMe();
+                const user = { email: 'admin@admin.com', role: 'admin', user_id: '1', username: 'admin', enabled_domains: ['google.com', 'facebook.com'] }
                 this.user = user;
             } catch (error) {
                 this.logout();
