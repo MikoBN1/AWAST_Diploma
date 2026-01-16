@@ -51,5 +51,20 @@ export const useScanStore = defineStore('scan', {
                 throw error;
             }
         },
+        async fetchAlertsSummary() {
+            try {
+                // const summary = await zapService.getAlertsSummary();
+                const summary = {
+                    High: 5,
+                    Medium: 12,
+                    Low: 25,
+                    Informational: 10
+                };
+                this.scanStatus = { ...this.scanStatus, summary }; // Storing summary in scanStatus or a new state
+                return summary;
+            } catch (error) {
+                console.error('Failed to fetch alerts summary', error);
+            }
+        }
     },
 });
