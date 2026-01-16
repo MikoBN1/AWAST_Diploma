@@ -2,7 +2,7 @@ import asyncio
 import os
 import uuid
 from datetime import datetime
-from controllers import user_controller, auth_controller
+from controllers import user_controller, auth_controller, swagger_controller
 from dotenv import load_dotenv
 import httpx
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
@@ -295,3 +295,4 @@ async def report_new(body: DownloadReportRequest):
 
 app.include_router(user_controller.router, prefix="/api")
 app.include_router(auth_controller.router, prefix="/api")
+app.include_router(swagger_controller.router, prefix="/api")
