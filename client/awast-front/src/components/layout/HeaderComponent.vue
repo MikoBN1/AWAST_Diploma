@@ -16,6 +16,7 @@ import logo from '../../assets/img/logo.svg'
         <v-col class="d-flex align-center py-0 ga-3 justify-center">
           <router-link class="link" to="/dashboard">Dashboard</router-link>
           <router-link class="link" to="/scanner">Scanner</router-link>
+          <router-link class="link" to="/swagger-analysis">Swagger AI</router-link>
           <router-link class="link" to="/scanner/history">Scan History</router-link>
         </v-col>
         <v-col>
@@ -32,8 +33,11 @@ import logo from '../../assets/img/logo.svg'
             <!--    Account Settings   -->
             <div>
               <i class="bi bi-gear resize-icon"></i>
-            </div><div>
-            <i class="bi bi-box-arrow-right resize-icon mr-5"></i>
+            </div>
+            <div>  
+              <router-link to="/auth/login">
+                <i class="bi bi-box-arrow-right resize-icon mr-5"></i>
+              </router-link>
           </div>
           </v-row>
 

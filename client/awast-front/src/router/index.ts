@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from "../views/LoginView.vue";
 import DashboardView from "../views/DashboardView.vue";
 import ScannerView from "../views/ScannerView.vue";
+import SwaggerAnalysisView from "../views/SwaggerAnalysisView.vue";
 
 import ScanHistoryView from "../views/ScanHistoryView.vue";
 import ProfileView from "../views/ProfileView.vue";
@@ -25,6 +26,12 @@ const router = createRouter({
             path: '/scanner',
             name: 'scanner',
             component: ScannerView,
+            meta: { hideHeader: false }
+        },
+        {
+            path: '/swagger-analysis',
+            name: 'swagger-analysis',
+            component: SwaggerAnalysisView,
             meta: { hideHeader: false }
         },
         {
