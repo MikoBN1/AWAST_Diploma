@@ -58,7 +58,4 @@ const layoutStore = useLayoutStore();
   color: var(--text-color);
   transition: color 0.2s;
 }
-.bi:hover {
-  color: var(--v-theme-primary);
-}
 </style>

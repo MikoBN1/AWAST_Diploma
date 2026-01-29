@@ -4,64 +4,83 @@
 
 <template>
 <v-row>
-  <v-col>
-    <v-card elevation="1" rounded>
-      <v-card-item>
-        <v-card-title>
-          <div class="icon-wrapper">
-            <i class="bi bi-activity"></i>
-          </div>
-        </v-card-title>
-      </v-card-item>
-      <v-card-text>
-        <p class="sub-text mb-2">Total Vulnerabilities</p>
-        <p class="value">1,247</p>
-      </v-card-text>
+  <v-col cols="12" sm="6" lg="3">
+    <v-card class="stats-card pa-4" elevation="0">
+      <div class="d-flex justify-space-between align-start mb-2">
+        <div>
+          <span class="text-subtitle-2 text-grey-darken-1 font-weight-medium">Total Vulnerabilities</span>
+          <h3 class="text-h4 font-weight-bold text-slate-800 mt-1">1,247</h3>
+        </div>
+        <div class="icon-box bg-blue-lighten-5 text-blue-darken-2">
+           <v-icon icon="mdi-shield-bug-outline" size="24"></v-icon>
+        </div>
+      </div>
+      <div class="d-flex align-center mt-2">
+        <v-chip size="x-small" color="success" class="font-weight-bold" variant="flat">
+          <v-icon start icon="mdi-arrow-up" size="12"></v-icon> 12%
+        </v-chip>
+        <span class="text-caption text-grey ml-2">vs last week</span>
+      </div>
     </v-card>
   </v-col>
-  <v-col>
-    <v-card elevation="1" rounded>
-      <v-card-item>
-        <v-card-title>
-          <div class="icon-wrapper red-colored">
-            <i class="bi bi-exclamation-triangle"></i>
-          </div>
-        </v-card-title>
-      </v-card-item>
-      <v-card-text>
-        <p class="sub-text mb-2">High Vulnerabilities</p>
-        <p class="value">47</p>
-      </v-card-text>
+
+  <v-col cols="12" sm="6" lg="3">
+     <v-card class="stats-card pa-4" elevation="0">
+      <div class="d-flex justify-space-between align-start mb-2">
+        <div>
+          <span class="text-subtitle-2 text-grey-darken-1 font-weight-medium">Critical Issues</span>
+          <h3 class="text-h4 font-weight-bold text-slate-800 mt-1">47</h3>
+        </div>
+        <div class="icon-box bg-red-lighten-5 text-red-darken-2">
+           <v-icon icon="mdi-alert-octagon-outline" size="24"></v-icon>
+        </div>
+      </div>
+      <div class="d-flex align-center mt-2">
+        <v-chip size="x-small" color="error" class="font-weight-bold" variant="flat">
+          <v-icon start icon="mdi-arrow-up" size="12"></v-icon> 5%
+        </v-chip>
+        <span class="text-caption text-grey ml-2">vs last week</span>
+      </div>
     </v-card>
   </v-col>
-  <v-col>
-    <v-card elevation="1" rounded>
-      <v-card-item>
-        <v-card-title>
-          <div class="icon-wrapper orange-colored">
-            <i class="bi bi-exclamation-triangle"></i>
-          </div>
-        </v-card-title>
-      </v-card-item>
-      <v-card-text>
-        <p class="sub-text mb-2">Medium Vulnerabilities</p>
-        <p class="value">247</p>
-      </v-card-text>
+
+  <v-col cols="12" sm="6" lg="3">
+      <v-card class="stats-card pa-4" elevation="0">
+      <div class="d-flex justify-space-between align-start mb-2">
+        <div>
+          <span class="text-subtitle-2 text-grey-darken-1 font-weight-medium">Medium Issues</span>
+          <h3 class="text-h4 font-weight-bold text-slate-800 mt-1">247</h3>
+        </div>
+        <div class="icon-box bg-amber-lighten-5 text-amber-darken-3">
+           <v-icon icon="mdi-alert-outline" size="24"></v-icon>
+        </div>
+      </div>
+      <div class="d-flex align-center mt-2">
+        <v-chip size="x-small" color="success" class="font-weight-bold" variant="flat">
+          <v-icon start icon="mdi-arrow-down" size="12"></v-icon> 2%
+        </v-chip>
+        <span class="text-caption text-grey ml-2">vs last week</span>
+      </div>
     </v-card>
   </v-col>
-  <v-col>
-    <v-card elevation="1" rounded>
-      <v-card-item>
-        <v-card-title>
-          <div class="icon-wrapper green-colored">
-            <i class="bi bi-exclamation-triangle"></i>
-          </div>
-        </v-card-title>
-      </v-card-item>
-      <v-card-text>
-        <p class="sub-text mb-2">Low Vulnerabilities</p>
-        <p class="value">1,022</p>
-      </v-card-text>
+  
+  <v-col cols="12" sm="6" lg="3">
+    <v-card class="stats-card pa-4" elevation="0">
+      <div class="d-flex justify-space-between align-start mb-2">
+        <div>
+          <span class="text-subtitle-2 text-grey-darken-1 font-weight-medium">Safe Services</span>
+          <h3 class="text-h4 font-weight-bold text-slate-800 mt-1">1,022</h3>
+        </div>
+        <div class="icon-box bg-green-lighten-5 text-green-darken-2">
+           <v-icon icon="mdi-check-circle-outline" size="24"></v-icon>
+        </div>
+      </div>
+      <div class="d-flex align-center mt-2">
+        <v-chip size="x-small" color="success" class="font-weight-bold" variant="flat">
+          <v-icon start icon="mdi-arrow-up" size="12"></v-icon> 8%
+        </v-chip>
+        <span class="text-caption text-grey ml-2">vs last week</span>
+      </div>
     </v-card>
   </v-col>
 
@@ -69,31 +88,21 @@
 </template>
 
 <style scoped>
-.icon-wrapper {
-  width: 32px;
-  height: 32px;
-  background-color: #1F51FF;
-  color: #fff;
+.stats-card {
+  border: 1px solid rgba(0,0,0,0.05);
+  background: white;
+  transition: all 0.3s ease;
+}
+.stats-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
+}
+.icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: flex;
-  justify-content: center;
   align-items: center;
-  border-radius: 10px;
-  font-size: 20px;
-}
-
-.orange-colored{
-  background: var(--medium-severity);
-}
-.red-colored{
-  background: var(--critical-severity);
-}
-.green-colored{
-  background: var(--low-severity);
-}
-.sub-text {
-  color: var(--sub-text);
-}
-.value{
-  color: var(--text-color);
+  justify-content: center;
 }
 </style>

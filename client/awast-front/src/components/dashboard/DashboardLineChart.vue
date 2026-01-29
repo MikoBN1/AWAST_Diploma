@@ -7,7 +7,8 @@ import {
   LinearScale,
   TimeScale,
   Tooltip,
-  Legend
+  Legend,
+  type ChartOptions
 } from 'chart.js'
 import 'chartjs-adapter-date-fns'
 import {computed, type PropType} from 'vue'
@@ -55,7 +56,7 @@ function checkForAllZero() {
   return props.items.every(i => i.count === 0)
 }
 
-const chartOptions = {
+const chartOptions: ChartOptions<'line'> = {
   responsive: true,
   plugins: {
     legend: {
@@ -77,7 +78,7 @@ const chartOptions = {
 </script>
 
 <template>
-  <v-card>
+  <v-card class="rounded-xl border-thin" elevation="0">
     <v-card-text>
       <div class="line-chart">
         <h1>Scans Timeline</h1>
@@ -140,5 +141,8 @@ h3 {
     align-items: center;
     flex-direction: column;
   }
+}
+.border-thin {
+   border: 1px solid rgba(0,0,0,0.05);
 }
 </style>

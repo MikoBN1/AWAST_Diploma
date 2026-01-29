@@ -72,7 +72,7 @@ const chartOptions = {
 </script>
 
 <template>
-  <v-card :width="props.width" height="100%">
+  <v-card :width="props.width" height="100%" class="rounded-xl border-thin" elevation="0">
     <v-card-text>
       <div class="pie-chart">
         <h1>Vulnerability Distribution</h1>
@@ -127,5 +127,8 @@ h3{
     align-items: center;
     flex-direction: column;
   }
+}
+.border-thin {
+   border: 1px solid rgba(0,0,0,0.05);
 }
 </style>
