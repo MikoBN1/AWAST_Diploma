@@ -29,6 +29,12 @@ const router = createRouter({
             meta: { hideHeader: false }
         },
         {
+            path: '/exploiter',
+            name: 'exploiter',
+            component: () => import('../views/ExploiterView.vue'),
+            meta: { hideHeader: false }
+        },
+        {
             path: '/swagger-analysis',
             name: 'swagger-analysis',
             component: SwaggerAnalysisView,
@@ -41,9 +47,21 @@ const router = createRouter({
             meta: { hideHeader: false }
         },
         {
+            path: '/scanner/history/:id',
+            name: 'scan_details',
+            component: () => import('../views/ScanDetailsView.vue'),
+            meta: { hideHeader: false }
+        },
+        {
             path: '/profile',
             name: 'profile',
             component: ProfileView,
+            meta: { hideHeader: false }
+        },
+        {
+            path: '/admin/users',
+            name: 'admin_users',
+            component: () => import('../views/AdminUsersView.vue'),
             meta: { hideHeader: false }
         }
     ]

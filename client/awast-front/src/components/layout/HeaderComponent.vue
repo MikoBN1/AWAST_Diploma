@@ -1,26 +1,26 @@
 <script setup lang="ts">
-import logo from '../../assets/img/logo.svg'
+import SettingsDialog from '../dialogs/SettingsDialog.vue'
+import { ref } from 'vue'
+import { useLayoutStore } from '../../stores/layoutStore';
+
+const isSettingsDialogOpen = ref(false)
+const layoutStore = useLayoutStore();
 </script>
 
 <template>
-  <div class="header-wrapper">
-    <header class="header">
-      <v-row>
-        <v-col class="d-flex align-center py-0">
-          <v-img  :src=logo
-                  alt="Login Image"
-                  max-width="200"
-                  class="logo"
-          />
-        </v-col>
-        <v-col class="d-flex align-center py-0 ga-3 justify-center">
-          <router-link class="link" to="/dashboard">Dashboard</router-link>
-          <router-link class="link" to="/scanner">Scanner</router-link>
-          <router-link class="link" to="/swagger-analysis">Swagger AI</router-link>
-          <router-link class="link" to="/scanner/history">Scan History</router-link>
-        </v-col>
-        <v-col>
-          <v-row class="ga-5 pr-0 ma-0" justify="end">
+  <v-app-bar app elevation="1" color="white" height="70">
+    <template v-slot:prepend>
+      <v-app-bar-nav-icon 
+        variant="text" 
+        color="grey-darken-1" 
+        @click="layoutStore.toggleRail()"
+      ></v-app-bar-nav-icon>
+    </template>
+
+    <v-spacer></v-spacer>
+
+    <template v-slot:append>
+       <div class="d-flex align-center ga-5 pr-2">
             <!--    User Account    -->
             <div>
               <router-link to="/profile">
@@ -32,51 +32,33 @@ import logo from '../../assets/img/logo.svg'
             </div>
             <!--    Account Settings   -->
             <div>
-              <i class="bi bi-gear resize-icon"></i>
+              <i
+                class="bi bi-gear resize-icon"
+                style="cursor: pointer;"
+                @click="isSettingsDialogOpen = true"
+              ></i>
             </div>
             <div>  
               <router-link to="/auth/login">
                 <i class="bi bi-box-arrow-right resize-icon mr-5"></i>
               </router-link>
-          </div>
-          </v-row>
+            </div>
+       </div>
+    </template>
 
-        </v-col>
-      </v-row>
-    </header>
-  </div>
+    <SettingsDialog v-model="isSettingsDialogOpen" />
+  </v-app-bar>
 </template>
 
 <style scoped>
-.header {
-  background-color: var(--layout);
-  height: 70px;
-  left: 0;
-  padding: 0 1vw;
-  margin-right: 0;
-  position: fixed;
-  top: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  z-index: 1000;
-  border-bottom: #ebebeb solid 1px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-.header-wrapper{
-  display: flex;
-  justify-content: end;
-  height: 70px;
-}
 .resize-icon {
-  font-size: 32px;
+  font-size: 24px;
 }
 .bi{
   color: var(--text-color);
+  transition: color 0.2s;
 }
-.link{
-  color: var(--sub-text);
-  text-decoration: none;
+.bi:hover {
+  color: var(--v-theme-primary);
 }
 </style>

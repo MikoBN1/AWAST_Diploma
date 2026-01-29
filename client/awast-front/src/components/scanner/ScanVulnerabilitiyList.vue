@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import ExploitDialog from '../dialogs/ExploitDialog.vue';
 
 interface Vulnerability {
   id: number
@@ -9,6 +10,7 @@ interface Vulnerability {
   description: string
   solution: string
   method: string
+  url: string
 }
 
 // Mock data with different severities
@@ -20,7 +22,8 @@ const vulnerabilities = ref<Vulnerability[]>([
     title: 'SQL Injection in User Authentication',
     description: 'Unsanitized user input directly concatenated to SQL query',
     solution: 'Use parameterized queries or prepared statements. Never concatenate user input directly into SQL queries. Implement input validation and sanitization.',
-    method: 'GET'
+    method: 'GET',
+    url: 'https://example.com/login'
   },
   {
     id: 2,
@@ -29,7 +32,8 @@ const vulnerabilities = ref<Vulnerability[]>([
     title: 'Security Misconfiguration - Missing Headers',
     description: 'Missing Content-Security-Policy and X-Frame-Options headers',
     solution: 'Modern Web browsers support the Content-Security-Policy and X-Frame-Options HTTP headers. Ensure one of them is set on all web pages returned by your site/app.',
-    method: 'POST'
+    method: 'POST',
+    url: 'https://example.com/api/config'
   },
   {
     id: 3,
@@ -38,9 +42,27 @@ const vulnerabilities = ref<Vulnerability[]>([
     title: 'Cross-Site Scripting (XSS) Vulnerability',
     description: 'User input rendered without proper escaping',
     solution: 'Implement proper output encoding and use Content Security Policy headers. Validate and sanitize all user inputs.',
-    method: 'GET'
+    method: 'GET',
+    url: 'https://example.com/search'
   }
 ])
+
+// Dialog State
+const exploitDialogOpen = ref(false);
+const selectedExploit = ref({
+    url: '',
+    method: '',
+    vulnType: ''
+});
+
+const openExploitDialog = (vuln: Vulnerability) => {
+    selectedExploit.value = {
+        url: vuln.url,
+        method: vuln.method,
+        vulnType: vuln.title
+    };
+    exploitDialogOpen.value = true;
+};
 
 const expandedItems = ref<Set<number>>(new Set())
 
@@ -173,6 +195,7 @@ const getSeverityConfig = (severity: string) => {
                 size="small"
                 class="exploit-btn"
                 :class="`exploit-btn-${vuln.severity}`"
+                @click="openExploitDialog(vuln)"
               >
                 <v-icon size="18" class="mr-1">mdi-bug-play</v-icon>
                 Exploit
@@ -182,6 +205,13 @@ const getSeverityConfig = (severity: string) => {
         </div>
       </div>
     </div>
+
+    <ExploitDialog
+      v-model="exploitDialogOpen"
+      :initial-url="selectedExploit.url"
+      :initial-method="selectedExploit.method"
+      :initial-vuln-type="selectedExploit.vulnType"
+    />
   </div>
 </template>
 
