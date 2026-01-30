@@ -29,12 +29,6 @@ const router = createRouter({
             meta: { hideHeader: false }
         },
         {
-            path: '/exploiter',
-            name: 'exploiter',
-            component: () => import('../views/ExploiterView.vue'),
-            meta: { hideHeader: false }
-        },
-        {
             path: '/swagger-analysis',
             name: 'swagger-analysis',
             component: SwaggerAnalysisView,

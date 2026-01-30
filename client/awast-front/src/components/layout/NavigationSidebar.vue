@@ -32,7 +32,6 @@ const layoutStore = useLayoutStore();
       <v-list-item prepend-icon="mdi-view-dashboard" title="Dashboard" value="dashboard" to="/dashboard" active-color="primary" rounded="lg"></v-list-item>
       <v-list-item prepend-icon="mdi-shield-search" title="Scanner" value="scanner" to="/scanner" active-color="primary" rounded="lg"></v-list-item>
       <v-list-item prepend-icon="mdi-history" title="Scan History" value="history" to="/scanner/history" active-color="primary" rounded="lg"></v-list-item>
-      <v-list-item prepend-icon="mdi-flash" title="Exploiter" value="exploiter" to="/exploiter" active-color="primary" rounded="lg"></v-list-item>
       <v-list-item prepend-icon="mdi-api" title="Swagger AI" value="swagger" to="/swagger-analysis" active-color="primary" rounded="lg"></v-list-item>
       
       <v-list-subheader v-if="!layoutStore.rail" class="text-caption text-uppercase font-weight-bold text-grey">Administration</v-list-subheader>
