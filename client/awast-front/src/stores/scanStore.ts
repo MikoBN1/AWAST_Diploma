@@ -12,6 +12,11 @@ export const useScanStore = defineStore('scan', {
         scanResults: null as any | null,
         isLoadingHistory: false,
         isLoadingResults: false,
+
+        // Dynamic WS properties
+        scanProgress: 0,
+        totalAlertsFound: 0,
+        wsConnection: null as WebSocket | null,
     }),
     actions: {
         async startSpider(target: string) {
@@ -27,6 +32,10 @@ export const useScanStore = defineStore('scan', {
         },
         async startScan(target: string) {
             this.isScanning = true;
+            this.scanProgress = 0;
+            this.totalAlertsFound = 0;
+            this.alerts = [];
+
             try {
                 const response = await zapService.startScan(target);
                 this.activeScanId = response.scan;
@@ -36,6 +45,78 @@ export const useScanStore = defineStore('scan', {
                 throw error;
             }
         },
+
+        connectToScanSocket(
+            scanId: string,
+            onComplete?: () => void,
+            onError?: (msg: string) => void
+        ) {
+            if (this.wsConnection) {
+                this.wsConnection.close();
+            }
+
+            const wsUrl = `ws://localhost:8000/api/v1/zap/ws/scan/${scanId}`;
+            this.wsConnection = new WebSocket(wsUrl);
+
+            this.wsConnection.onopen = () => {
+                console.log("Connected to scan monitor.");
+            };
+
+            this.wsConnection.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    switch (data.type) {
+                        case "progress":
+                            this.scanProgress = data.progress;
+                            this.totalAlertsFound = data.total_alerts;
+
+                            if (data.new_alerts && data.new_alerts.length > 0) {
+                                // Add new alerts to the store reactively
+                                this.alerts = [...this.alerts, ...data.new_alerts];
+                            }
+                            break;
+
+                        case "done":
+                            this.scanProgress = 100;
+                            this.isScanning = false;
+
+                            if (data.total_alerts !== undefined) {
+                                this.totalAlertsFound = data.total_alerts;
+                            }
+
+                            if (this.wsConnection) {
+                                this.wsConnection.close();
+                                this.wsConnection = null;
+                            }
+
+                            if (onComplete) onComplete();
+                            break;
+
+                        case "error":
+                            this.isScanning = false;
+                            if (this.wsConnection) {
+                                this.wsConnection.close();
+                                this.wsConnection = null;
+                            }
+
+                            if (onError) onError(data.message || "Unknown scan error");
+                            break;
+
+                        default:
+                            console.log("Unknown message type:", data);
+                    }
+                } catch (e) {
+                    console.error("Failed to parse WS message", e);
+                }
+            };
+
+            this.wsConnection.onclose = () => {
+                console.log("Disconnected from scan monitor.");
+                this.wsConnection = null;
+            };
+        },
+
         async checkStatus() {
             if (!this.activeScanId) return;
             try {

@@ -81,7 +81,7 @@ onMounted(() => {
               <v-icon icon="mdi-alert-circle-outline" size="48" color="error" class="mb-2"></v-icon>
               <div class="text-caption text-uppercase text-medium-emphasis font-weight-bold">Total Vulnerabilities</div>
               <div class="text-h3 font-weight-bold text-error">
-                 {{ scanStatus?.summary ? (scanStatus.summary.High + scanStatus.summary.Medium + scanStatus.summary.Low + scanStatus.summary.Informational) : 0 }}
+                 {{ scanStatus?.summary ? (scanStatus.summary.alertsSummary.High + scanStatus.summary.alertsSummary.Medium + scanStatus.summary.alertsSummary.Low + scanStatus.summary.alertsSummary.Informational) : 0 }}
               </div>
             </v-card>
           </v-col>
@@ -95,19 +95,19 @@ onMounted(() => {
               <v-card-text>
                 <v-row v-if="scanStatus?.summary" no-gutters>
                   <v-col cols="6" sm="3" class="d-flex flex-column align-center px-2 py-4 border-e-sm">
-                    <div class="text-h4 font-weight-bold text-red">{{ scanStatus.summary.High || 0 }}</div>
+                    <div class="text-h4 font-weight-bold text-red">{{ scanStatus.summary.alertsSummary.High || 0 }}</div>
                     <div class="text-caption text-uppercase font-weight-bold mt-1">High</div>
                   </v-col>
                   <v-col cols="6" sm="3" class="d-flex flex-column align-center px-2 py-4 border-e-sm-md-and-up">
-                    <div class="text-h4 font-weight-bold text-orange">{{ scanStatus.summary.Medium || 0 }}</div>
+                    <div class="text-h4 font-weight-bold text-orange">{{ scanStatus.summary.alertsSummary.Medium || 0 }}</div>
                     <div class="text-caption text-uppercase font-weight-bold mt-1">Medium</div>
                   </v-col>
                   <v-col cols="6" sm="3" class="d-flex flex-column align-center px-2 py-4 border-e-sm">
-                    <div class="text-h4 font-weight-bold text-yellow-darken-2">{{ scanStatus.summary.Low || 0 }}</div>
+                    <div class="text-h4 font-weight-bold text-yellow-darken-2">{{ scanStatus.summary.alertsSummary.Low || 0 }}</div>
                     <div class="text-caption text-uppercase font-weight-bold mt-1">Low</div>
                   </v-col>
                   <v-col cols="6" sm="3" class="d-flex flex-column align-center px-2 py-4">
-                    <div class="text-h4 font-weight-bold text-info">{{ scanStatus.summary.Informational || 0 }}</div>
+                    <div class="text-h4 font-weight-bold text-info">{{ scanStatus.summary.alertsSummary.Informational || 0 }}</div>
                     <div class="text-caption text-uppercase font-weight-bold mt-1">Info</div>
                   </v-col>
                 </v-row>

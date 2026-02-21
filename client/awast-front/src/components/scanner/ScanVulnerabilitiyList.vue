@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useScanStore } from '@/stores/scanStore';
+import { storeToRefs } from 'pinia';
 import ExploitDialog from '../dialogs/ExploitDialog.vue';
 
+const scanStore = useScanStore();
+const { alerts } = storeToRefs(scanStore);
+
 interface Vulnerability {
-  id: number
+  id: string
   severity: 'critical' | 'high' | 'medium' | 'low'
   cveId: string
   title: string
@@ -13,39 +18,31 @@ interface Vulnerability {
   url: string
 }
 
-// Mock data with different severities
-const vulnerabilities = ref<Vulnerability[]>([
-  {
-    id: 1,
-    severity: 'critical',
-    cveId: 'OWASP_2021_A01',
-    title: 'SQL Injection in User Authentication',
-    description: 'Unsanitized user input directly concatenated to SQL query',
-    solution: 'Use parameterized queries or prepared statements. Never concatenate user input directly into SQL queries. Implement input validation and sanitization.',
-    method: 'GET',
-    url: 'https://example.com/login'
-  },
-  {
-    id: 2,
-    severity: 'high',
-    cveId: 'OWASP_2021_A05',
-    title: 'Security Misconfiguration - Missing Headers',
-    description: 'Missing Content-Security-Policy and X-Frame-Options headers',
-    solution: 'Modern Web browsers support the Content-Security-Policy and X-Frame-Options HTTP headers. Ensure one of them is set on all web pages returned by your site/app.',
-    method: 'POST',
-    url: 'https://example.com/api/config'
-  },
-  {
-    id: 3,
-    severity: 'medium',
-    cveId: 'OWASP_2021_A03',
-    title: 'Cross-Site Scripting (XSS) Vulnerability',
-    description: 'User input rendered without proper escaping',
-    solution: 'Implement proper output encoding and use Content Security Policy headers. Validate and sanitize all user inputs.',
-    method: 'GET',
-    url: 'https://example.com/search'
+// Map ZAP risks to severity types used in the component
+const mapRiskToSeverity = (risk?: string): 'critical' | 'high' | 'medium' | 'low' => {
+  if (!risk) return 'low';
+  switch(risk.toLowerCase()) {
+    case 'high': return 'high';
+    case 'medium': return 'medium';
+    case 'low': return 'low';
+    case 'informational': return 'low';
+    default: return 'low';
   }
-])
+};
+
+// Computed property to map raw WS alerts to Vulnerability objects
+const vulnerabilities = computed<Vulnerability[]>(() => {
+  return alerts.value.map((alert: any, index: number) => ({
+    id: alert.id || String(index),
+    severity: mapRiskToSeverity(alert.risk),
+    cveId: alert.cve || 'N/A',
+    title: alert.name || 'Unknown Vulnerability',
+    description: alert.description || 'Description not available in real-time stream. Full report required.',
+    solution: alert.solution || 'Solution not available in real-time stream. Full report required.',
+    method: alert.method || 'GET',
+    url: alert.url || 'Unknown URL'
+  }));
+});
 
 // Dialog State
 const exploitDialogOpen = ref(false);
@@ -64,9 +61,9 @@ const openExploitDialog = (vuln: Vulnerability) => {
     exploitDialogOpen.value = true;
 };
 
-const expandedItems = ref<Set<number>>(new Set())
+const expandedItems = ref<Set<string>>(new Set())
 
-const toggleExpand = (id: number) => {
+const toggleExpand = (id: string) => {
   if (expandedItems.value.has(id)) {
     expandedItems.value.delete(id)
   } else {

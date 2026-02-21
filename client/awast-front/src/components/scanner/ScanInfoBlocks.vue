@@ -1,31 +1,36 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed } from "vue";
+import { useScanStore } from '@/stores/scanStore';
+import { storeToRefs } from 'pinia';
 
-const scanInfo = ref([
+const scanStore = useScanStore();
+const { scanProgress, totalAlertsFound } = storeToRefs(scanStore);
+
+const scanInfo = computed(() => [
   {
     title: "Vulnerabilities Found",
-    value: "45",
+    value: totalAlertsFound.value.toString(),
     icon: "mdi-bug",
     color: "error",
     gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
   },
   {
     title: "Progress",
-    value: "37",
+    value: scanProgress.value.toString(),
     icon: "mdi-chart-line",
     color: "info",
     gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
   },
   {
     title: "Target URL",
-    value: "example.com",
+    value: "Dynamic URL", // Can map later if needed, hardcode or pass as prop
     icon: "mdi-web",
     color: "success",
     gradient: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
   },
   {
     title: "Start Time",
-    value: "16/02/23 12:00",
+    value: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     icon: "mdi-clock-outline",
     color: "warning",
     gradient: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",

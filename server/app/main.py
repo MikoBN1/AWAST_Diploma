@@ -1,5 +1,6 @@
-from dotenv import load_dotenv
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
 from controllers import (
@@ -11,29 +12,30 @@ from controllers import (
     report_controller,
 )
 from core.database import init_models
+from core.config import settings
 
-load_dotenv()
-app = FastAPI()
-
-
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     await init_models()
+    yield
 
-
-origins = ["*"]
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[settings.FRONTEND_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(scanner_controller.router)
-app.include_router(exploiter_controller.router)
-app.include_router(report_controller.router)
-app.include_router(user_controller.router, prefix="/api")
-app.include_router(auth_controller.router, prefix="/api")
-app.include_router(swagger_controller.router, prefix="/api")
+api_router = APIRouter(prefix="/api/v1")
+
+api_router.include_router(scanner_controller.router)
+api_router.include_router(exploiter_controller.router)
+api_router.include_router(report_controller.router)
+api_router.include_router(user_controller.router)
+api_router.include_router(auth_controller.router)
+api_router.include_router(swagger_controller.router)
+
+app.include_router(api_router)

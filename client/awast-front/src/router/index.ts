@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '../stores/authStore';
 import LoginView from "../views/LoginView.vue";
 import DashboardView from "../views/DashboardView.vue";
 import ScannerView from "../views/ScannerView.vue";
@@ -60,5 +61,18 @@ const router = createRouter({
         }
     ]
 })
+
+router.beforeEach((to, _from, next) => {
+    const authStore = useAuthStore();
+    const isAuthenticated = authStore.isAuthenticated;
+
+    if (to.name !== 'login' && !isAuthenticated) {
+        next({ name: 'login' });
+    } else if (to.name === 'login' && isAuthenticated) {
+        next({ name: 'dashboard' });
+    } else {
+        next();
+    }
+});
 
 export default router

@@ -1,28 +1,44 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
+import { useScanStore } from '@/stores/scanStore';
+import { storeToRefs } from 'pinia';
 
-const vulns = ref([
-  {
-    severity: "High",
-    value: 23,
-    color: "#ef4444",
-    gradient: "linear-gradient(90deg, #ef4444 0%, #dc2626 100%)",
-  },
-  {
-    severity: "Medium",
-    value: 10,
-    color: "#f59e0b",
-    gradient: "linear-gradient(90deg, #f59e0b 0%, #d97706 100%)",
-  },
-  {
-    severity: "Low",
-    value: 2,
-    color: "#10b981",
-    gradient: "linear-gradient(90deg, #10b981 0%, #059669 100%)",
-  },
-])
+const scanStore = useScanStore();
+const { alerts, totalAlertsFound } = storeToRefs(scanStore);
 
-const totalVulns = ref(35);
+const vulns = computed(() => {
+  let high = 0;
+  let medium = 0;
+  let low = 0;
+
+  alerts.value.forEach((alert: any) => {
+    if (alert.risk === 'High') high++;
+    else if (alert.risk === 'Medium') medium++;
+    else if (alert.risk === 'Low') low++;
+  });
+
+  return [
+    {
+      severity: "High",
+      value: high,
+      color: "#ef4444",
+      gradient: "linear-gradient(90deg, #ef4444 0%, #dc2626 100%)",
+    },
+    {
+      severity: "Medium",
+      value: medium,
+      color: "#f59e0b",
+      gradient: "linear-gradient(90deg, #f59e0b 0%, #d97706 100%)",
+    },
+    {
+      severity: "Low",
+      value: low,
+      color: "#10b981",
+      gradient: "linear-gradient(90deg, #10b981 0%, #059669 100%)",
+    },
+  ];
+});
+
 const scanType = ref("Full");
 </script>
 
@@ -50,7 +66,7 @@ const scanType = ref("Full");
             <span class="severity-value">{{ item.value }} found</span>
           </div>
           <v-progress-linear
-            :model-value="(item.value / totalVulns) * 100"
+            :model-value="totalAlertsFound > 0 ? (item.value / totalAlertsFound) * 100 : 0"
             :color="item.color"
             height="8"
             rounded
@@ -69,7 +85,7 @@ const scanType = ref("Full");
               <div class="stat-icon-wrapper gradient-primary mb-3">
                 <v-icon icon="mdi-bug-outline" color="white" size="24"></v-icon>
               </div>
-              <div class="stat-value">{{ totalVulns }}</div>
+              <div class="stat-value">{{ totalAlertsFound }}</div>
               <div class="stat-label">Total Vulnerabilities</div>
             </div>
           </v-col>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onUnmounted } from "vue";
 import { useScanStore } from '@/stores/scanStore';
 import { storeToRefs } from 'pinia';
 import ScanInfoBlocks from "../components/scanner/ScanInfoBlocks.vue";
@@ -7,7 +7,7 @@ import ScanVulnerabilitiesProgress from "../components/scanner/ScanVulnerabiliti
 import ScanVulnerabilitiyList from "../components/scanner/ScanVulnerabilitiyList.vue";
 
 const scanStore = useScanStore();
-const { isScanning, scanStatus } = storeToRefs(scanStore);
+const { isScanning, scanProgress } = storeToRefs(scanStore);
 
 const model = ref(true);
 const visible = ref(false);
@@ -43,15 +43,24 @@ const startScan = async () => {
           scanPhase.value = 'scan';
           await scanStore.startScan(targetUrl.value);
           
-          statusInterval = setInterval(async () => {
-            await scanStore.checkStatus();
-            if (!isScanning.value) {
-              if (statusInterval) clearInterval(statusInterval);
+          if (!scanStore.activeScanId) return;
+          
+          // Connect to the WebSocket for live updates
+          scanStore.connectToScanSocket(
+            scanStore.activeScanId,
+            async () => {
+              // On Complete
               scanPhase.value = '';
               successMsg.value = 'Scan completed successfully!';
-              await scanStore.loadAlerts(targetUrl.value);
+              // Optionally fetch full alerts summary here if needed, but WS provides live items
+              // await scanStore.loadAlerts(targetUrl.value);
+            },
+            (err) => {
+              // On Error
+              errorMsg.value = `Scan error: ${err}`;
+              scanPhase.value = '';
             }
-          }, 3000);
+          );
         }
       } catch (error) {
         console.error('Status check failed', error);
@@ -65,6 +74,9 @@ const startScan = async () => {
 
 onUnmounted(() => {
   if (statusInterval) clearInterval(statusInterval);
+  if (scanStore.wsConnection) {
+    scanStore.wsConnection.close();
+  }
 });
 </script>
 
@@ -109,7 +121,7 @@ onUnmounted(() => {
                 <div class="d-flex align-center">
                   <v-progress-circular indeterminate size="20" width="2" class="mr-3"></v-progress-circular>
                   <span v-if="scanPhase === 'spider'">Spidering target... Discovering pages and endpoints</span>
-                  <span v-else-if="scanPhase === 'scan'">Active scanning in progress... {{ scanStatus?.status || '0' }}% complete</span>
+                  <span v-else-if="scanPhase === 'scan'">Active scanning in progress... {{ scanProgress }}% complete</span>
                 </div>
               </v-alert>
 

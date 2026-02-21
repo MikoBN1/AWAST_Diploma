@@ -3,42 +3,42 @@ import type { UserOut, UserCreate, UserUpdate } from '@/types/api';
 
 export default {
     async getUsers() {
-        const response = await apiClient.get<UserOut[]>('/api/user/all');
+        const response = await apiClient.get<UserOut[]>('/user/all');
         return response.data;
     },
 
     async getMe() {
-        const response = await apiClient.get<UserOut>('/api/user/me');
+        const response = await apiClient.get<UserOut>('/user/me');
         return response.data;
     },
 
     async createUser(data: UserCreate) {
-        const response = await apiClient.post<UserOut>('/api/user/new', data);
+        const response = await apiClient.post<UserOut>('/user/new', data);
         return response.data;
     },
 
     async getUser(id: string) {
-        const response = await apiClient.get<UserOut>(`/api/user/${id}`);
+        const response = await apiClient.get<UserOut>(`/user/${id}`);
         return response.data;
     },
 
     async updateUser(id: string, data: UserUpdate) {
-        const response = await apiClient.patch<UserOut>(`/api/user/${id}`, data);
+        const response = await apiClient.patch<UserOut>(`/user/${id}`, data);
         return response.data;
     },
 
     async deleteUser(id: string) {
-        const response = await apiClient.delete(`/api/user/${id}`);
+        const response = await apiClient.delete(`/user/${id}`);
         return response.data;
     },
 
     async getMyScanHistory() {
-        const response = await apiClient.get('/api/user/my/scan/history');
+        const response = await apiClient.get('/user/my/scan/history');
         return response.data;
     },
 
     async getMyScanResults(scanId: string) {
-        const response = await apiClient.get(`/api/user/my/scan/${scanId}/results`);
+        const response = await apiClient.get(`/user/my/scan/${scanId}/results`);
         return response.data;
     },
 };
