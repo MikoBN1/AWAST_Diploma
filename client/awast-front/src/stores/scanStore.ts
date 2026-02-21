@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import zapService from '@/services/zapService';
+import userService from '@/services/userService';
 
 export const useScanStore = defineStore('scan', {
     state: () => ({
@@ -7,13 +8,17 @@ export const useScanStore = defineStore('scan', {
         scanStatus: null as any | null,
         alerts: [] as any[],
         isScanning: false,
+        scanHistory: [] as any[],
+        scanResults: null as any | null,
+        isLoadingHistory: false,
+        isLoadingResults: false,
     }),
     actions: {
         async startSpider(target: string) {
             this.isScanning = true;
             try {
                 const response = await zapService.startSpider(target);
-                this.activeScanId = response.scan; // Adjust based on actual response field
+                this.activeScanId = response.scan;
                 return response;
             } catch (error) {
                 this.isScanning = false;
@@ -24,7 +29,7 @@ export const useScanStore = defineStore('scan', {
             this.isScanning = true;
             try {
                 const response = await zapService.startScan(target);
-                this.activeScanId = response.scan; // Adjust based on actual response field
+                this.activeScanId = response.scan;
                 return response;
             } catch (error) {
                 this.isScanning = false;
@@ -36,7 +41,7 @@ export const useScanStore = defineStore('scan', {
             try {
                 const status = await zapService.getScanStatus(this.activeScanId);
                 this.scanStatus = status;
-                if (status.status === '100') { // Assuming '100' means complete
+                if (status.status === '100') {
                     this.isScanning = false;
                 }
             } catch (error) {
@@ -53,18 +58,34 @@ export const useScanStore = defineStore('scan', {
         },
         async fetchAlertsSummary() {
             try {
-                // const summary = await zapService.getAlertsSummary();
-                const summary = {
-                    High: 5,
-                    Medium: 12,
-                    Low: 25,
-                    Informational: 10
-                };
-                this.scanStatus = { ...this.scanStatus, summary }; // Storing summary in scanStatus or a new state
+                const summary = await zapService.getAlertsSummary();
+                this.scanStatus = { ...this.scanStatus, summary };
                 return summary;
             } catch (error) {
                 console.error('Failed to fetch alerts summary', error);
             }
-        }
+        },
+        async fetchScanHistory() {
+            this.isLoadingHistory = true;
+            try {
+                this.scanHistory = await userService.getMyScanHistory();
+            } catch (error) {
+                console.error('Failed to fetch scan history', error);
+            } finally {
+                this.isLoadingHistory = false;
+            }
+        },
+        async fetchScanResults(scanId: string) {
+            this.isLoadingResults = true;
+            try {
+                this.scanResults = await userService.getMyScanResults(scanId);
+                return this.scanResults;
+            } catch (error) {
+                console.error('Failed to fetch scan results', error);
+                throw error;
+            } finally {
+                this.isLoadingResults = false;
+            }
+        },
     },
 });

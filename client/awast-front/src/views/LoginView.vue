@@ -3,12 +3,33 @@ import { ref } from 'vue'
 import loginImage from '../assets/img/login-left-side.jpeg'
 import logo from '../assets/img/logo.svg'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/authStore'
 
 const visible = ref(false)
 const router = useRouter()
+const authStore = useAuthStore()
 
-function signIn(){
- router.push('/dashboard')
+const email = ref('')
+const password = ref('')
+const errorMsg = ref('')
+const loading = ref(false)
+
+async function signIn(){
+  errorMsg.value = ''
+  if (!email.value || !password.value) {
+    errorMsg.value = 'Please enter email and password'
+    return
+  }
+
+  try {
+    loading.value = true
+    await authStore.login({ email: email.value, password: password.value })
+    router.push('/dashboard')
+  } catch (error) {
+    errorMsg.value = 'Invalid email or password'
+  } finally {
+    loading.value = false
+  }
 }
 
 </script>
@@ -39,9 +60,11 @@ function signIn(){
             Nice to see you again
           </v-card-title>
           <v-card-text>
-            <v-form>
+            <v-alert v-if="errorMsg" type="error" variant="tonal" class="mb-4" density="compact">{{ errorMsg }}</v-alert>
+            <v-form @submit.prevent="signIn">
               <v-label>Email</v-label>
               <v-text-field
+                  v-model="email"
                   density="compact"
                   placeholder="Email address"
                   prepend-inner-icon="mdi-email-outline"
@@ -49,6 +72,7 @@ function signIn(){
               ></v-text-field>
               <v-label>Password</v-label>
               <v-text-field
+                  v-model="password"
                   :append-inner-icon="visible ? 'mdi-eye-off' : 'mdi-eye'"
                   :type="visible ? 'text' : 'password'"
                   density="compact"
@@ -58,6 +82,8 @@ function signIn(){
                   @click:append-inner="visible = !visible"
               ></v-text-field>
               <v-btn
+                  :loading="loading"
+                  type="submit"
                   height="40"
                   color="var(--button-bg)"
                   rounded="lg"
@@ -65,7 +91,6 @@ function signIn(){
                   class="btn-text"
                   block
                   elevation="0"
-                  @click="signIn"
               >Sign In</v-btn>
             </v-form>
           </v-card-text>

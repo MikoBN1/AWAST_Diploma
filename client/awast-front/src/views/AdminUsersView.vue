@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { useUserStore } from '@/stores/userStore';
+import { storeToRefs } from 'pinia';
+import type { UserCreate, UserUpdate } from '@/types/api';
 
-// Mock Data
-const users = ref([
-  { id: '1', username: 'admin', email: 'admin@awast.com', role: 'admin', enabled_domains: ['*'] },
-  { id: '2', username: 'user1', email: 'user1@example.com', role: 'user', enabled_domains: ['example.com'] },
-  { id: '3', username: 'auditor', email: 'auditor@company.com', role: 'user', enabled_domains: ['company.com', 'subsidiary.com'] },
-]);
+const userStore = useUserStore();
+const { users, isLoading } = storeToRefs(userStore);
 
 const dialog = ref(false);
 const dialogDelete = ref(false);
@@ -20,30 +19,37 @@ const headers = [
 
 const editedIndex = ref(-1);
 const editedItem = ref({
-  id: '',
+  user_id: '',
   username: '',
   email: '',
+  password: '',
   role: 'user',
   enabled_domains: [] as string[],
 });
 const defaultItem = {
-  id: '',
+  user_id: '',
   username: '',
   email: '',
+  password: '',
   role: 'user',
-  enabled_domains: [],
+  enabled_domains: [] as string[],
 };
 
 const formTitle = computed(() => {
   return editedIndex.value === -1 ? 'New User' : 'Edit User';
 });
 
-import { computed } from 'vue';
+const errorMsg = ref('');
+
+onMounted(async () => {
+  await userStore.fetchUsers();
+});
 
 const close = () => {
   dialog.value = false;
+  errorMsg.value = '';
   setTimeout(() => {
-    editedItem.value = Object.assign({}, defaultItem);
+    editedItem.value = { ...defaultItem, enabled_domains: [] };
     editedIndex.value = -1;
   }, 300);
 };
@@ -51,36 +57,60 @@ const close = () => {
 const closeDelete = () => {
   dialogDelete.value = false;
   setTimeout(() => {
-    editedItem.value = Object.assign({}, defaultItem);
+    editedItem.value = { ...defaultItem, enabled_domains: [] };
     editedIndex.value = -1;
   }, 300);
 };
 
-const save = () => {
-  if (editedIndex.value > -1 && users.value[editedIndex.value]) {
-    Object.assign(users.value[editedIndex.value], editedItem.value);
-  } else {
-    // Mock ID generation
-    users.value.push({ ...editedItem.value, id: String(users.value.length + 1) });
+const save = async () => {
+  errorMsg.value = '';
+  try {
+    if (editedIndex.value > -1) {
+      const updateData: UserUpdate = {
+        username: editedItem.value.username,
+        email: editedItem.value.email,
+        role: editedItem.value.role,
+        enabled_domains: editedItem.value.enabled_domains,
+      };
+      if (editedItem.value.password) {
+        updateData.password = editedItem.value.password;
+      }
+      await userStore.updateUser(editedItem.value.user_id, updateData);
+    } else {
+      const createData: UserCreate = {
+        username: editedItem.value.username,
+        email: editedItem.value.email,
+        password: editedItem.value.password,
+        role: editedItem.value.role,
+        enabled_domains: editedItem.value.enabled_domains,
+      };
+      await userStore.createUser(createData);
+    }
+    close();
+  } catch (error: any) {
+    errorMsg.value = error?.response?.data?.detail || 'Operation failed';
   }
-  close();
 };
 
 const editItem = (item: any) => {
-  editedIndex.value = users.value.indexOf(item);
-  editedItem.value = JSON.parse(JSON.stringify(item)); // Deep copy mainly for arrays
+  editedIndex.value = users.value.findIndex(u => u.user_id === item.user_id);
+  editedItem.value = { ...item, password: '' };
   dialog.value = true;
 };
 
 const deleteItem = (item: any) => {
-  editedIndex.value = users.value.indexOf(item);
-  editedItem.value = Object.assign({}, item);
+  editedIndex.value = users.value.findIndex(u => u.user_id === item.user_id);
+  editedItem.value = { ...item };
   dialogDelete.value = true;
 };
 
-const deleteItemConfirm = () => {
-  users.value.splice(editedIndex.value, 1);
-  closeDelete();
+const deleteItemConfirm = async () => {
+  try {
+    await userStore.deleteUser(editedItem.value.user_id);
+    closeDelete();
+  } catch (error: any) {
+    errorMsg.value = error?.response?.data?.detail || 'Delete failed';
+  }
 };
 </script>
 
@@ -99,6 +129,7 @@ const deleteItemConfirm = () => {
         <v-data-table
           :headers="headers"
           :items="users"
+          :loading="isLoading"
           class="bg-transparent"
         >
           <template v-slot:item.role="{ item }">
@@ -128,6 +159,7 @@ const deleteItemConfirm = () => {
           </v-card-title>
 
           <v-card-text>
+            <v-alert v-if="errorMsg" type="error" variant="tonal" density="compact" class="mb-4">{{ errorMsg }}</v-alert>
             <v-container>
               <v-row>
                 <v-col cols="12">
@@ -135,6 +167,14 @@ const deleteItemConfirm = () => {
                 </v-col>
                 <v-col cols="12">
                   <v-text-field v-model="editedItem.email" label="Email" variant="outlined"></v-text-field>
+                </v-col>
+                <v-col cols="12">
+                  <v-text-field
+                    v-model="editedItem.password"
+                    :label="editedIndex === -1 ? 'Password' : 'New Password (leave blank to keep)'"
+                    type="password"
+                    variant="outlined"
+                  ></v-text-field>
                 </v-col>
                 <v-col cols="12" sm="6">
                   <v-select v-model="editedItem.role" :items="['admin', 'user']" label="Role" variant="outlined"></v-select>
@@ -156,7 +196,7 @@ const deleteItemConfirm = () => {
           <v-card-actions>
             <v-spacer></v-spacer>
             <v-btn color="blue-darken-1" variant="text" @click="close">Cancel</v-btn>
-            <v-btn color="blue-darken-1" variant="text" @click="save">Save</v-btn>
+            <v-btn color="blue-darken-1" variant="text" @click="save" :loading="isLoading">Save</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
@@ -169,7 +209,7 @@ const deleteItemConfirm = () => {
           <v-card-actions>
             <v-spacer></v-spacer>
             <v-btn color="blue-darken-1" variant="text" @click="closeDelete">Cancel</v-btn>
-            <v-btn color="error" variant="elevated" @click="deleteItemConfirm">Delete</v-btn>
+            <v-btn color="error" variant="elevated" @click="deleteItemConfirm" :loading="isLoading">Delete</v-btn>
             <v-spacer></v-spacer>
           </v-card-actions>
         </v-card>

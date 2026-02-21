@@ -1,14 +1,71 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
+import { useScanStore } from '@/stores/scanStore';
+import { storeToRefs } from 'pinia';
 import ScanInfoBlocks from "../components/scanner/ScanInfoBlocks.vue";
 import ScanVulnerabilitiesProgress from "../components/scanner/ScanVulnerabilitiesProgress.vue";
 import ScanVulnerabilitiyList from "../components/scanner/ScanVulnerabilitiyList.vue";
+
+const scanStore = useScanStore();
+const { isScanning, scanStatus } = storeToRefs(scanStore);
 
 const model = ref(true);
 const visible = ref(false);
 const targetUrl = ref('');
 const username = ref('');
 const password = ref('');
+const errorMsg = ref('');
+const successMsg = ref('');
+const scanPhase = ref(''); // 'spider' | 'scan' | ''
+let statusInterval: ReturnType<typeof setInterval> | null = null;
+
+const startScan = async () => {
+  if (!targetUrl.value) {
+    errorMsg.value = 'Please enter a target URL';
+    return;
+  }
+  errorMsg.value = '';
+  successMsg.value = '';
+  
+  try {
+    scanPhase.value = 'spider';
+    await scanStore.startSpider(targetUrl.value);
+    
+    // Poll spider status
+    statusInterval = setInterval(async () => {
+      if (!scanStore.activeScanId) return;
+      try {
+        const status = await import('@/services/zapService').then(m => m.default.getSpiderStatus(scanStore.activeScanId!));
+        if (status.status === '100') {
+          if (statusInterval) clearInterval(statusInterval);
+          
+          // Start active scan after spider completes
+          scanPhase.value = 'scan';
+          await scanStore.startScan(targetUrl.value);
+          
+          statusInterval = setInterval(async () => {
+            await scanStore.checkStatus();
+            if (!isScanning.value) {
+              if (statusInterval) clearInterval(statusInterval);
+              scanPhase.value = '';
+              successMsg.value = 'Scan completed successfully!';
+              await scanStore.loadAlerts(targetUrl.value);
+            }
+          }, 3000);
+        }
+      } catch (error) {
+        console.error('Status check failed', error);
+      }
+    }, 3000);
+  } catch (error: any) {
+    errorMsg.value = error?.response?.data?.detail || 'Failed to start scan';
+    scanPhase.value = '';
+  }
+};
+
+onUnmounted(() => {
+  if (statusInterval) clearInterval(statusInterval);
+});
 </script>
 
 <template>
@@ -43,6 +100,19 @@ const password = ref('');
                 </p>
               </div>
 
+              <!-- Alerts -->
+              <v-alert v-if="errorMsg" type="error" variant="tonal" density="compact" class="mb-4" closable @click:close="errorMsg = ''">{{ errorMsg }}</v-alert>
+              <v-alert v-if="successMsg" type="success" variant="tonal" density="compact" class="mb-4" closable @click:close="successMsg = ''">{{ successMsg }}</v-alert>
+
+              <!-- Scan Progress -->
+              <v-alert v-if="isScanning" type="info" variant="tonal" density="compact" class="mb-4">
+                <div class="d-flex align-center">
+                  <v-progress-circular indeterminate size="20" width="2" class="mr-3"></v-progress-circular>
+                  <span v-if="scanPhase === 'spider'">Spidering target... Discovering pages and endpoints</span>
+                  <span v-else-if="scanPhase === 'scan'">Active scanning in progress... {{ scanStatus?.status || '0' }}% complete</span>
+                </div>
+              </v-alert>
+
               <!-- URL Input -->
               <div class="mb-5">
                 <label class="input-label mb-2">Target URL</label>
@@ -56,6 +126,7 @@ const password = ref('');
                   bg-color="white"
                   class="modern-input"
                   hide-details
+                  :disabled="isScanning"
                 ></v-text-field>
               </div>
 
@@ -76,6 +147,7 @@ const password = ref('');
                       color="primary"
                       inset
                       class="ml-4"
+                      :disabled="isScanning"
                     ></v-switch>
                   </div>
                 </v-card>
@@ -95,6 +167,7 @@ const password = ref('');
                       bg-color="white"
                       class="modern-input"
                       hide-details
+                      :disabled="isScanning"
                     ></v-text-field>
                   </div>
 
@@ -113,6 +186,7 @@ const password = ref('');
                       class="modern-input"
                       @click:append-inner="visible = !visible"
                       hide-details
+                      :disabled="isScanning"
                     ></v-text-field>
                   </div>
                 </div>
@@ -125,8 +199,11 @@ const password = ref('');
                 variant="elevated"
                 class="text-none font-weight-bold glow-button"
                 prepend-icon="mdi-radar"
+                @click="startScan"
+                :loading="isScanning"
+                :disabled="isScanning"
               >
-                Start Security Scan
+                {{ isScanning ? 'Scanning...' : 'Start Security Scan' }}
               </v-btn>
 
               <!-- Info Footer -->
