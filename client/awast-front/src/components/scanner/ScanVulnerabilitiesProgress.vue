@@ -66,7 +66,7 @@ const scanType = ref("Full");
             <span class="severity-value">{{ item.value }} found</span>
           </div>
           <v-progress-linear
-            :model-value="totalAlertsFound > 0 ? (item.value / totalAlertsFound) * 100 : 0"
+            :model-value="alerts.length > 0 ? (item.value / alerts.length) * 100 : 0"
             :color="item.color"
             height="8"
             rounded
@@ -85,7 +85,7 @@ const scanType = ref("Full");
               <div class="stat-icon-wrapper gradient-primary mb-3">
                 <v-icon icon="mdi-bug-outline" color="white" size="24"></v-icon>
               </div>
-              <div class="stat-value">{{ totalAlertsFound }}</div>
+              <div class="stat-value">{{ alerts.length }}</div>
               <div class="stat-label">Total Vulnerabilities</div>
             </div>
           </v-col>

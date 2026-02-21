@@ -124,8 +124,8 @@ const getSeverityColor = (severity: string) => {
         <!-- Vulnerabilities List -->
         <h2 class="text-h5 font-weight-bold text-slate-800 mb-4">Vulnerabilities Found</h2>
         
-        <v-row v-if="scanResults.alerts && scanResults.alerts.length > 0">
-            <v-col v-for="(vuln, index) in scanResults.alerts" :key="index" cols="12">
+        <v-row v-if="scanResults && scanResults.length > 0">
+            <v-col v-for="(vuln, index) in scanResults" :key="index" cols="12">
                 <v-card class="glass-card vulnerability-card pa-2" elevation="0">
                     <div class="d-flex align-center">
                         <div class="severity-indicator mr-4" :class="getSeverityColor(vuln.risk || vuln.severity || '')"></div>

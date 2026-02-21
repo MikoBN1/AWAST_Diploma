@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from "vue";
+import { ref, onUnmounted, onMounted } from "vue";
 import { useScanStore } from '@/stores/scanStore';
 import { storeToRefs } from 'pinia';
 import ScanInfoBlocks from "../components/scanner/ScanInfoBlocks.vue";
@@ -16,8 +16,7 @@ const username = ref('');
 const password = ref('');
 const errorMsg = ref('');
 const successMsg = ref('');
-const scanPhase = ref(''); // 'spider' | 'scan' | ''
-let statusInterval: ReturnType<typeof setInterval> | null = null;
+const scanPhase = ref(''); // 'scan' | ''
 
 const startScan = async () => {
   if (!targetUrl.value) {
@@ -28,44 +27,25 @@ const startScan = async () => {
   successMsg.value = '';
   
   try {
-    scanPhase.value = 'spider';
-    await scanStore.startSpider(targetUrl.value);
+    scanPhase.value = 'scan';
+    await scanStore.startScan(targetUrl.value);
     
-    // Poll spider status
-    statusInterval = setInterval(async () => {
-      if (!scanStore.activeScanId) return;
-      try {
-        const status = await import('@/services/zapService').then(m => m.default.getSpiderStatus(scanStore.activeScanId!));
-        if (status.status === '100') {
-          if (statusInterval) clearInterval(statusInterval);
-          
-          // Start active scan after spider completes
-          scanPhase.value = 'scan';
-          await scanStore.startScan(targetUrl.value);
-          
-          if (!scanStore.activeScanId) return;
-          
-          // Connect to the WebSocket for live updates
-          scanStore.connectToScanSocket(
-            scanStore.activeScanId,
-            async () => {
-              // On Complete
-              scanPhase.value = '';
-              successMsg.value = 'Scan completed successfully!';
-              // Optionally fetch full alerts summary here if needed, but WS provides live items
-              // await scanStore.loadAlerts(targetUrl.value);
-            },
-            (err) => {
-              // On Error
-              errorMsg.value = `Scan error: ${err}`;
-              scanPhase.value = '';
-            }
-          );
-        }
-      } catch (error) {
-        console.error('Status check failed', error);
+    if (!scanStore.activeScanId) return;
+    
+    // Connect to the WebSocket for live updates
+    scanStore.connectToScanSocket(
+      scanStore.activeScanId,
+      () => {
+        // On Complete
+        scanPhase.value = '';
+        successMsg.value = 'Scan completed successfully!';
+      },
+      (err) => {
+        // On Error
+        errorMsg.value = `Scan error: ${err}`;
+        scanPhase.value = '';
       }
-    }, 3000);
+    );
   } catch (error: any) {
     errorMsg.value = error?.response?.data?.detail || 'Failed to start scan';
     scanPhase.value = '';
@@ -73,7 +53,6 @@ const startScan = async () => {
 };
 
 onUnmounted(() => {
-  if (statusInterval) clearInterval(statusInterval);
   if (scanStore.wsConnection) {
     scanStore.wsConnection.close();
   }
@@ -120,8 +99,7 @@ onUnmounted(() => {
               <v-alert v-if="isScanning" type="info" variant="tonal" density="compact" class="mb-4">
                 <div class="d-flex align-center">
                   <v-progress-circular indeterminate size="20" width="2" class="mr-3"></v-progress-circular>
-                  <span v-if="scanPhase === 'spider'">Spidering target... Discovering pages and endpoints</span>
-                  <span v-else-if="scanPhase === 'scan'">Active scanning in progress... {{ scanProgress }}% complete</span>
+                  <span>Active scanning in progress... {{ scanProgress }}% complete</span>
                 </div>
               </v-alert>
 

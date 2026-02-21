@@ -8,15 +8,15 @@ from schemas.zap_scanner_schema import RequestBody
 import services.scanner_service as scanner_service
 from services.websocket_service import manager
 
-router = APIRouter(prefix="/zap", tags=["scanner"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/zap", tags=["scanner"])
 
 
-@router.post("/spider")
+@router.post("/spider", dependencies=[Depends(get_current_user)])
 async def zap_spider(target: RequestBody):
     return await scanner_service.start_spider(target.target)
 
 
-@router.get("/spider_status/{scan_id}")
+@router.get("/spider_status/{scan_id}", dependencies=[Depends(get_current_user)])
 async def zap_spider_status(scan_id: str):
     return await scanner_service.get_spider_status(scan_id)
 
@@ -33,33 +33,37 @@ async def zap_scan(
         scanner_service.run_scan,
         result["scan_id"],
         target.target,
-        result["zap_index"],
-        db
+        result["zap_index"]
     )
     return {"scan_id": result["scan_id"], "scan_index": result["scan_index"]}
 
 
-@router.get("/scan_status/{scan_id}")
+@router.get("/scan_status/{scan_id}", dependencies=[Depends(get_current_user)])
 async def zap_scan_status(scan_id: str):
     return await scanner_service.get_scan_status(scan_id)
 
 
-@router.get("/alerts")
+@router.get("/alerts", dependencies=[Depends(get_current_user)])
 async def zap_alerts():
     return await scanner_service.get_alerts()
 
 
-@router.get("/alerts/target")
+@router.get("/alerts/target", dependencies=[Depends(get_current_user)])
 async def zap_alerts_with_evidence(baseurl: str = None):
     return await scanner_service.get_alerts_with_evidence(baseurl)
 
 
-@router.get("/alerts/summary")
+@router.get("/alerts/summary", dependencies=[Depends(get_current_user)])
 async def zap_alerts_summary():
     return await scanner_service.get_alerts_summary()
 
 
-@router.get("/abort/scan/{scan_id}")
+@router.get("/alerts/{alert_id}", dependencies=[Depends(get_current_user)])
+async def zap_alert_by_id(alert_id: str):
+    return await scanner_service.get_alert_by_id(alert_id)
+
+
+@router.get("/abort/scan/{scan_id}", dependencies=[Depends(get_current_user)])
 async def zap_abort(scan_id: str):
     return await scanner_service.abort_scan(scan_id)
 

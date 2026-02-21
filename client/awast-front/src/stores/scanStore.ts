@@ -17,10 +17,12 @@ export const useScanStore = defineStore('scan', {
         scanProgress: 0,
         totalAlertsFound: 0,
         wsConnection: null as WebSocket | null,
+        targetUrl: null as string | null,
     }),
     actions: {
         async startSpider(target: string) {
             this.isScanning = true;
+            this.targetUrl = target;
             try {
                 const response = await zapService.startSpider(target);
                 this.activeScanId = response.scan;
@@ -32,13 +34,14 @@ export const useScanStore = defineStore('scan', {
         },
         async startScan(target: string) {
             this.isScanning = true;
+            this.targetUrl = target;
             this.scanProgress = 0;
             this.totalAlertsFound = 0;
             this.alerts = [];
 
             try {
                 const response = await zapService.startScan(target);
-                this.activeScanId = response.scan;
+                this.activeScanId = response.scan_id;
                 return response;
             } catch (error) {
                 this.isScanning = false;
@@ -63,8 +66,15 @@ export const useScanStore = defineStore('scan', {
             };
 
             this.wsConnection.onmessage = (event) => {
+                if (event.data === 'ping' || event.data === '"ping"') return;
+
                 try {
                     const data = JSON.parse(event.data);
+
+                    // If the payload contains an alerts array directly, ingest it
+                    if (data.alerts && Array.isArray(data.alerts)) {
+                        this.alerts = data.alerts;
+                    }
 
                     switch (data.type) {
                         case "progress":
@@ -80,9 +90,10 @@ export const useScanStore = defineStore('scan', {
                         case "done":
                             this.scanProgress = 100;
                             this.isScanning = false;
+                            this.alerts = data.alerts
 
-                            if (data.total_alerts !== undefined) {
-                                this.totalAlertsFound = data.total_alerts;
+                            if (data.alerts_count !== undefined) {
+                                this.totalAlertsFound = data.alerts_count;
                             }
 
                             if (this.wsConnection) {
@@ -104,6 +115,10 @@ export const useScanStore = defineStore('scan', {
                             break;
 
                         default:
+                            if (!data.type && data.alerts) {
+                                // If there's no type but we have alerts, we've handled it above
+                                break;
+                            }
                             console.log("Unknown message type:", data);
                     }
                 } catch (e) {
@@ -134,6 +149,15 @@ export const useScanStore = defineStore('scan', {
                 const alerts = await zapService.getAlerts(baseUrl);
                 this.alerts = alerts;
             } catch (error) {
+                throw error;
+            }
+        },
+        async loadAlertById(alertId: string) {
+            try {
+                const alert = await zapService.getAlertById(alertId);
+                return alert;
+            } catch (error) {
+                console.error(`Failed to load alert by ID: ${alertId}`, error);
                 throw error;
             }
         },

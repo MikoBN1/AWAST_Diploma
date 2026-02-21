@@ -1,0 +1,233 @@
+%PDF-1.4
+%“Œ‹ž ReportLab Generated PDF document http://www.reportlab.com
+1 0 obj
+<<
+/F1 2 0 R /F2 3 0 R /F3 4 0 R /F4 5 0 R
+>>
+endobj
+2 0 obj
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
+endobj
+3 0 obj
+<<
+/BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding /Name /F2 /Subtype /Type1 /Type /Font
+>>
+endobj
+4 0 obj
+<<
+/BaseFont /Times-Bold /Encoding /WinAnsiEncoding /Name /F3 /Subtype /Type1 /Type /Font
+>>
+endobj
+5 0 obj
+<<
+/BaseFont /Times-Roman /Encoding /WinAnsiEncoding /Name /F4 /Subtype /Type1 /Type /Font
+>>
+endobj
+6 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://owasp.org/Top10/A05_2021-Security_Misconfiguration/)
+>> /Border [ 0 0 0 ] /Rect [ 78 532.6398 160.22 544.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+7 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://www.zaproxy.org/docs/desktop/addons/common-library/alerttags/#systemic)
+>> /Border [ 0 0 0 ] /Rect [ 78 515.6398 127.45 527.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+8 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://cwe.mitre.org/data/definitions/693.html)
+>> /Border [ 0 0 0 ] /Rect [ 78 498.6398 118.55 510.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+9 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration.html)
+>> /Border [ 0 0 0 ] /Rect [ 78 481.6398 160.22 493.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+10 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://owasp.org/Top10/A01_2021-Broken_Access_Control/)
+>> /Border [ 0 0 0 ] /Rect [ 78 273.6398 160.22 285.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+11 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://owasp.org/Top10/A02_2021-Cryptographic_Failures/)
+>> /Border [ 0 0 0 ] /Rect [ 78 256.6398 160.22 268.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+12 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://cwe.mitre.org/data/definitions/326.html)
+>> /Border [ 0 0 0 ] /Rect [ 78 239.6398 118.55 251.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+13 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/04-Authentication_Testing/01-Testing_for_Credentials_Transported_over_an_Encrypted_Channel)
+>> /Border [ 0 0 0 ] /Rect [ 78 222.6398 169.09 234.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+14 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://owasp.org/www-project-top-ten/2017/A2_2017-Broken_Authentication.html)
+>> /Border [ 0 0 0 ] /Rect [ 78 205.6398 160.22 217.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+15 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure.html)
+>> /Border [ 0 0 0 ] /Rect [ 78 188.6398 160.22 200.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+16 0 obj
+<<
+/Annots [ 6 0 R 7 0 R 8 0 R 9 0 R 10 0 R 11 0 R 12 0 R 13 0 R 14 0 R 15 0 R ] /Contents 27 0 R /MediaBox [ 0 0 595.2756 841.8898 ] /Parent 26 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 
+  /Trans <<
+
+>> /Type /Page
+>>
+endobj
+17 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://owasp.org/Top10/A05_2021-Security_Misconfiguration/)
+>> /Border [ 0 0 0 ] /Rect [ 78 622.6398 160.22 634.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+18 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://www.zaproxy.org/docs/desktop/addons/common-library/alerttags/#systemic)
+>> /Border [ 0 0 0 ] /Rect [ 78 605.6398 127.45 617.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+19 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration.html)
+>> /Border [ 0 0 0 ] /Rect [ 78 588.6398 160.22 600.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+20 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/01-Information_Gathering/02-Fingerprint_Web_Server)
+>> /Border [ 0 0 0 ] /Rect [ 78 571.6398 164.65 583.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+21 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://cwe.mitre.org/data/definitions/497.html)
+>> /Border [ 0 0 0 ] /Rect [ 78 554.6398 118.55 566.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+22 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://cwe.mitre.org/data/definitions/1104.html)
+>> /Border [ 0 0 0 ] /Rect [ 78 346.6398 123.55 358.6398 ] /Subtype /Link /Type /Annot
+>>
+endobj
+23 0 obj
+<<
+/Annots [ 17 0 R 18 0 R 19 0 R 20 0 R 21 0 R 22 0 R ] /Contents 28 0 R /MediaBox [ 0 0 595.2756 841.8898 ] /Parent 26 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 
+  /Trans <<
+
+>> /Type /Page
+>>
+endobj
+24 0 obj
+<<
+/PageMode /UseNone /Pages 26 0 R /Type /Catalog
+>>
+endobj
+25 0 obj
+<<
+/Author (\(anonymous\)) /CreationDate (D:20260222001328+05'00') /Creator (\(unspecified\)) /Keywords () /ModDate (D:20260222001328+05'00') /Producer (ReportLab PDF Library - www.reportlab.com) 
+  /Subject (\(unspecified\)) /Title (\(anonymous\)) /Trapped /False
+>>
+endobj
+26 0 obj
+<<
+/Count 2 /Kids [ 16 0 R 23 0 R ] /Type /Pages
+>>
+endobj
+27 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ] /Length 1287
+>>
+stream
+Gau`S_,B;Q'YNTZhD&i#`0).qi>/^-lk[f#fJC`P;+8UX9<>t<Jg;_/^Yb1`KYZ5V"a9V!K-b`NhUCdc#WU`BWLml*E#cdZ'*1ECSceM;*lR5\')1g@boQpP#_>L#@5nQ:/UI.Sqq;(YkT.\S5kaG.>eoP:"VOue8hCUJrm3$1#S+cmqVS<c7)]e$$R8Kc'eZ=<#8$ocpbt1fh0fq1^@].P&44B46=)5=iV;;FFFe]0EC6e3:PLQeV8:SFKP@99ftaH.7Cn&>r[bXn3Iinr*#3jeG0?*-T.0C7Y>*t8gb.FO$4CT[[L)+k%3;M<nIX(I*HeC#dKitsea.G)l:q49`=!-V"NEHBaOpb4a>rJ)bpHp)1<c('N!,.F;Zj,^O,*'<_MA@O#Uq7@6j[J36u=ZG0eC#e!t]%4='UstQmo!l7)C'7NT+sZ2uW2BFE:heJMY2/PWpk0LO"Oi5-`'EC4(C<9Hd@R3R"<$>bTl=bTb>t//fq#iS7Psg2_5(ZP3dO%B4jcD3RSkRRteu@/66?glfpV93<[S&f`b_ctM^m(fk[S31RtX-"M/aF]0ZRkAh#I9PQJr0'a6V[PYHsg![ar[WktV.W)2N5.%9n8sERrqm"FWQ#fL#_+&>$Elg;^ZIug"$\THk"%_M\Q/,:rJ15l?q3.p_;ssb2U1aO>n\mN4'e<)k?nP)^]2Z"grN>437=q&9,Y*rQm=baMV&:rr(<W3n8#$;b"OkkV'n.5)X146KL96nt\]AdF^7S-<31.'JKK%S*An/9r8"HaLgQk8IB^]AmRdo_DFZk^:DlH+GmF3"tE_sODAAm5d55I?u:G2X6FV6d<-1rV$T#@u$P='iZG4Bklg<(?qn#SGSDPrNP8KY=N^DAl394Q[f]<p=8YCsW:D7:>&79+HpFM0gT^L!JG-HqEO*fWX"6ANJiLLYg)*&>+FjA[ljC94^>%e9:XF+G[%r3`9JPIQOtS[?[rlhc$(4<;9rZ9+FS-H"8fPh!5!8F0;3DS7n[IK#^E7g+*5,1jYn0J1^"L)-]sY[-3*duY]<9tjbC[jbUJFYG&LED\V;\J(!b.c_A"jVh#tg>l)OG\tQg!#4"?aTf+':mMB&@5;5)MRj9JP9H0(el(=H)Ri@DB8THSs2qic5X3,q8LK;.29D1XcYgofk\2FC\@o+ap^[1EBr?GYf59WGqo7`?'V?GL4F/uHcTWGb;>4]uoQ&(D4sE3PlV8e/Yt;gj,Nq5<PD$(&8V5M$8]Hs$*+*7>hqmo'*FFJ;Ds]370B,)9'BoAsAPBNm~>endstream
+endobj
+28 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ] /Length 885
+>>
+stream
+Gau`Q?#Q2d'Rf.G>kKP8'Yq`IUMjk9[$@ri,Mo0^V/j?X1^$`n;WZe3L,;WQ6)@QH?4aEe4m-'Wc9Yij%B+T-97Sf*edql!5\GV'8Uuh/5`I.d5(gZB_8Dl/qgf::dWdP>Z44e.32;s0qM?rR-!3M>&?0F?\l-R'@EaWE04;`O6GcN)a@'QXS]sR-A4jV?&dB`VW=ue9oG6l*bXElS(SHgS^I%+@Z\TDO9R%Jh/.SUuBA=L]7IHK+_3XDL*>/2(?-Q[L?j,$l"1#=d(S/p`i%cjH>a%=Qd&WI4LH7\1%aTN;YrkgGYZ<#babb\8ZUL&%@C=LR*9^EXhq,T->\n]dEM_KEIMd)S5m`Wa)"1I.Z8Kj.R&#RJM??e7KaV3X80XY)A@C&'KSk&[/\`daN#-<1^Ibqg[4$qK*O;2!nkalMAm>:@2e_Qm'>-CpjKC@-fj(,WU13coI+G.9k2,CHmbCM4j4afTA+\-WH`\,:P@]q&iQ&^QFR\\o]FD@e1q'dSHQUas]SF5g[_hpO&`0jTKV+4fATpR^p\OdVVJG3m!cG3(5gMHR_"hNf-%X[*9Dh7ai\YQ3?DG]NS'6:)(N8,@,bA43g>7s25OM$[d:/sC;p.K.2Nd<p4kE([Z6jsF.@@DU>A9j"r8:+,hmeP4oTmndJ@5M;q[GR>Dhn_7qmY;PDFt(A"rBu'<Yi2b<1LaBlA3IX;!P](MO7Ckf:iCKE%%Q+HR1psWG5dQH*67b>#&%.6l,$`9L()5q+`V;\c07cor6$6J;Q`I+QY,F<`-XI9UXrRL^[b_]N;OndqlID-X-\j#o\:>a*%A]?oXtV!TQGd-LK>jIIV:"Bf%UNH(X=@GUHO`rkEM^IlG5/_)\as$@$36nHTnaU:p~>endstream
+endobj
+xref
+0 29
+0000000000 65535 f 
+0000000073 00000 n 
+0000000134 00000 n 
+0000000241 00000 n 
+0000000353 00000 n 
+0000000461 00000 n 
+0000000570 00000 n 
+0000000773 00000 n 
+0000000995 00000 n 
+0000001186 00000 n 
+0000001411 00000 n 
+0000001611 00000 n 
+0000001812 00000 n 
+0000002004 00000 n 
+0000002335 00000 n 
+0000002557 00000 n 
+0000002781 00000 n 
+0000003065 00000 n 
+0000003269 00000 n 
+0000003492 00000 n 
+0000003718 00000 n 
+0000004009 00000 n 
+0000004201 00000 n 
+0000004394 00000 n 
+0000004654 00000 n 
+0000004724 00000 n 
+0000005008 00000 n 
+0000005076 00000 n 
+0000006455 00000 n 
+trailer
+<<
+/ID 
+[<90b7bae800a96707b2b5906ea382767f><90b7bae800a96707b2b5906ea382767f>]
+% ReportLab generated PDF document -- digest (http://www.reportlab.com)
+
+/Info 25 0 R
+/Root 24 0 R
+/Size 29
+>>
+startxref
+7431
+%%EOF

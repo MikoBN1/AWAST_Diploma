@@ -39,6 +39,11 @@ export default {
         return response.data;
     },
 
+    async getAlertById(alertId: string) {
+        const response = await apiClient.get(`/zap/alerts/${alertId}`);
+        return response.data;
+    },
+
     async abortScan(scanId: string) {
         const response = await apiClient.get(`/zap/abort/scan/${scanId}`);
         return response.data;

@@ -5,6 +5,7 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 import httpx
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
@@ -14,35 +15,55 @@ from schemas.report_schema import Vulnerability as VulnerabilitySchema
 from services.database_service import AsyncDatabaseService
 from services.websocket_service import manager
 
+async def _zap_get(client: httpx.AsyncClient, url: str, params: dict) -> dict:
+    resp = await client.get(url, params=params)
+    try:
+        resp.raise_for_status()
+    except httpx.HTTPStatusError:
+        try:
+            msg = resp.json().get("message", resp.text)
+        except Exception:
+            msg = resp.text
+        raise HTTPException(status_code=400, detail=f"ZAP API Error: {msg}")
+    return resp.json()
+
+
 async def start_spider(target: str) -> dict:
     async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.get(
+        return await _zap_get(
+            client,
             f"{settings.ZAP_API_URL}/JSON/spider/action/scan/",
-            params={"apikey": settings.ZAP_API_KEY, "url": target}
+            {"apikey": settings.ZAP_API_KEY, "url": target}
         )
-        resp.raise_for_status()
-        return resp.json()
 
 
 async def get_spider_status(scan_id: str) -> dict:
     async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.get(
+        return await _zap_get(
+            client,
             f"{settings.ZAP_API_URL}/JSON/spider/view/status/",
-            params={"apikey": settings.ZAP_API_KEY, "scanId": scan_id}
+            {"apikey": settings.ZAP_API_KEY, "scanId": scan_id}
         )
-        resp.raise_for_status()
-        return resp.json()
 
 
 async def start_scan(target: str, user_id: str, db: AsyncSession) -> dict:
     database_service = AsyncDatabaseService(lambda: db)
     async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.get(
+        # Ensure the URL is in ZAP's site tree before scanning
+        try:
+            await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/core/action/accessUrl/",
+                {"apikey": settings.ZAP_API_KEY, "url": target, "followRedirects": "true"}
+            )
+        except Exception as e:
+            logger.warning(f"Failed to accessUrl {target} before scan: {e}")
+
+        data = await _zap_get(
+            client,
             f"{settings.ZAP_API_URL}/JSON/ascan/action/scan/",
-            params={"apikey": settings.ZAP_API_KEY, "url": target},
+            {"apikey": settings.ZAP_API_KEY, "url": target}
         )
-        resp.raise_for_status()
-        data = resp.json()
 
     scan_data = Scan(
         target=target,
@@ -62,22 +83,20 @@ async def start_scan(target: str, user_id: str, db: AsyncSession) -> dict:
 
 async def get_scan_status(scan_id: str) -> dict:
     async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.get(
+        return await _zap_get(
+            client,
             f"{settings.ZAP_API_URL}/JSON/ascan/view/status/",
-            params={"apikey": settings.ZAP_API_KEY, "scanId": scan_id}
+            {"apikey": settings.ZAP_API_KEY, "scanId": scan_id}
         )
-        resp.raise_for_status()
-        return resp.json()
 
 
 async def get_alerts() -> dict:
     async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.get(
+        return await _zap_get(
+            client,
             f"{settings.ZAP_API_URL}/JSON/core/view/alerts/",
-            params={"apikey": settings.ZAP_API_KEY}
+            {"apikey": settings.ZAP_API_KEY}
         )
-        resp.raise_for_status()
-        return resp.json()
 
 
 async def get_alerts_with_evidence(baseurl: str = None) -> dict:
@@ -86,12 +105,11 @@ async def get_alerts_with_evidence(baseurl: str = None) -> dict:
         params["baseurl"] = baseurl
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.get(
+        data = await _zap_get(
+            client,
             f"{settings.ZAP_API_URL}/JSON/core/view/alerts/",
-            params=params
+            params
         )
-        resp.raise_for_status()
-        data = resp.json()
         alerts = data.get("alerts", [])
 
         seen = set()
@@ -120,25 +138,37 @@ async def get_alerts_with_evidence(baseurl: str = None) -> dict:
 
 async def get_alerts_summary() -> dict:
     async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.get(
+        return await _zap_get(
+            client,
             f"{settings.ZAP_API_URL}/JSON/core/view/alertsSummary/",
-            params={"apikey": settings.ZAP_API_KEY}
+            {"apikey": settings.ZAP_API_KEY}
         )
-        resp.raise_for_status()
-        return resp.json()
+
+
+async def get_alert_by_id(alert_id: str) -> dict:
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        return await _zap_get(
+            client,
+            f"{settings.ZAP_API_URL}/JSON/core/view/alert/",
+            {"apikey": settings.ZAP_API_KEY, "id": alert_id}
+        )
 
 
 async def abort_scan(scan_id: str) -> dict:
     async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.get(
+        return await _zap_get(
+            client,
             f"{settings.ZAP_API_URL}/JSON/ascan/action/stop/",
-            params={"apikey": settings.ZAP_API_KEY, "scanId": scan_id}
+            {"apikey": settings.ZAP_API_KEY, "scanId": scan_id}
         )
-        resp.raise_for_status()
-        return resp.json()
 
 
-async def run_scan(scan_id: int, target_url: str, scan_index: str, db: AsyncSession):
+async def run_scan(scan_id: int, target_url: str, scan_index: str):
+    from core.database import async_session
+    async with async_session() as db:
+        await _run_scan_internal(scan_id, target_url, scan_index, db)
+
+async def _run_scan_internal(scan_id: int, target_url: str, scan_index: str, db: AsyncSession):
     database_service = AsyncDatabaseService(lambda: db)
     logger.info(f"Starting run_scan for scan_id={scan_id}, target={target_url}, zap_scan_index={scan_index}")
     try:
@@ -208,10 +238,12 @@ async def run_scan(scan_id: int, target_url: str, scan_index: str, db: AsyncSess
             data = resp.json()
             vulnerabilities = [VulnerabilitySchema(**v) for v in data.get("alerts", [])]
 
+            alerts_data = []
             for vuln in vulnerabilities:
                 vuln_data = vuln.model_dump()
                 vuln_data["url"] = str(vuln_data["url"])
                 await database_service.create(Vulnerability(**vuln_data, scan_id=scan_id))
+                alerts_data.append(vuln_data)
 
             await database_service.update(
                 Scan,
@@ -223,7 +255,8 @@ async def run_scan(scan_id: int, target_url: str, scan_index: str, db: AsyncSess
                 "type": "done",
                 "progress": 100,
                 "alerts_count": len(vulnerabilities),
-                "total_alerts": len(seen_alert_ids)
+                "total_alerts": len(seen_alert_ids),
+                "alerts": alerts_data
             })
             logger.info(f"Scan {scan_id} completed successfully. Found {len(vulnerabilities)} vulnerabilities.")
 

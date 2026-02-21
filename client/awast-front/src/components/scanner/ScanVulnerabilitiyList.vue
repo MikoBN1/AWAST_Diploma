@@ -33,9 +33,9 @@ const mapRiskToSeverity = (risk?: string): 'critical' | 'high' | 'medium' | 'low
 // Computed property to map raw WS alerts to Vulnerability objects
 const vulnerabilities = computed<Vulnerability[]>(() => {
   return alerts.value.map((alert: any, index: number) => ({
-    id: alert.id || String(index),
+    id: alert.id || alert.cweid || `vuln-${index}`,
     severity: mapRiskToSeverity(alert.risk),
-    cveId: alert.cve || 'N/A',
+    cveId: alert.cweid ? `CWE-${alert.cweid}` : (alert.cve || 'N/A'),
     title: alert.name || 'Unknown Vulnerability',
     description: alert.description || 'Description not available in real-time stream. Full report required.',
     solution: alert.solution || 'Solution not available in real-time stream. Full report required.',

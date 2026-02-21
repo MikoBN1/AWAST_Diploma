@@ -4,12 +4,12 @@ import { useScanStore } from '@/stores/scanStore';
 import { storeToRefs } from 'pinia';
 
 const scanStore = useScanStore();
-const { scanProgress, totalAlertsFound } = storeToRefs(scanStore);
+const { scanProgress, alerts, targetUrl } = storeToRefs(scanStore);
 
 const scanInfo = computed(() => [
   {
     title: "Vulnerabilities Found",
-    value: totalAlertsFound.value.toString(),
+    value: alerts.value.length.toString(),
     icon: "mdi-bug",
     color: "error",
     gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
@@ -23,7 +23,7 @@ const scanInfo = computed(() => [
   },
   {
     title: "Target URL",
-    value: "Dynamic URL", // Can map later if needed, hardcode or pass as prop
+    value: targetUrl.value || "Dynamic URL",
     icon: "mdi-web",
     color: "success",
     gradient: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
