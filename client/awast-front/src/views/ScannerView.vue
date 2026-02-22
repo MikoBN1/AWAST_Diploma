@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onUnmounted, onMounted } from "vue";
+import { ref, onUnmounted, onMounted, watch } from "vue";
+import { useRoute } from 'vue-router';
 import { useScanStore } from '@/stores/scanStore';
 import { storeToRefs } from 'pinia';
 import ScanInfoBlocks from "../components/scanner/ScanInfoBlocks.vue";
@@ -7,6 +8,7 @@ import ScanVulnerabilitiesProgress from "../components/scanner/ScanVulnerabiliti
 import ScanVulnerabilitiyList from "../components/scanner/ScanVulnerabilitiyList.vue";
 
 const scanStore = useScanStore();
+const route = useRoute();
 const { isScanning, scanProgress } = storeToRefs(scanStore);
 
 const model = ref(true);
@@ -57,6 +59,70 @@ onUnmounted(() => {
     scanStore.wsConnection.close();
   }
 });
+
+const loadScanData = async (id: string) => {
+  try {
+    scanStore.isScanning = true;
+    scanStore.scanProgress = 0;
+    scanStore.activeScanId = id;
+    
+    if (scanStore.scanHistory.length === 0) {
+      await scanStore.fetchScanHistory();
+    }
+    const historyItem = scanStore.scanHistory.find((s: any) => s.scan_id === id);
+    if (historyItem) {
+      targetUrl.value = historyItem.target;
+    }
+
+    const results = await scanStore.fetchScanResults(id);
+    
+    let alertsToDisplay = [];
+    if (Array.isArray(results)) {
+        alertsToDisplay = results;
+    } else if (results && results.alerts) {
+        alertsToDisplay = results.alerts;
+    }
+
+    scanStore.alerts = alertsToDisplay;
+    scanStore.scanProgress = 100;
+    scanStore.totalAlertsFound = alertsToDisplay.length;
+    scanStore.isScanning = false;
+    successMsg.value = 'Loaded historical scan data successfully.';
+  } catch (error) {
+     errorMsg.value = 'Failed to load historical scan data.';
+     scanStore.isScanning = false;
+  }
+};
+
+onMounted(() => {
+  const id = route.params.id as string;
+  if (id) {
+    loadScanData(id);
+  } else {
+    // Clear out previous store values when visiting a fresh /scanner route
+    scanStore.alerts = [];
+    scanStore.scanProgress = 0;
+    scanStore.totalAlertsFound = 0;
+    scanStore.activeScanId = null;
+  }
+});
+
+watch(
+  () => route.params.id,
+  (newId) => {
+    if (newId) {
+      loadScanData(newId as string);
+    } else {
+      targetUrl.value = '';
+      scanStore.alerts = [];
+      scanStore.scanProgress = 0;
+      scanStore.totalAlertsFound = 0;
+      scanStore.activeScanId = null;
+      successMsg.value = '';
+      errorMsg.value = '';
+    }
+  }
+);
 </script>
 
 <template>

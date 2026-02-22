@@ -42,9 +42,9 @@ const router = createRouter({
             meta: { hideHeader: false }
         },
         {
-            path: '/scanner/history/:id',
+            path: '/scanner/:id',
             name: 'scan_details',
-            component: () => import('../views/ScanDetailsView.vue'),
+            component: ScannerView,
             meta: { hideHeader: false }
         },
         {
@@ -69,6 +69,8 @@ router.beforeEach((to, _from, next) => {
     if (to.name !== 'login' && !isAuthenticated) {
         next({ name: 'login' });
     } else if (to.name === 'login' && isAuthenticated) {
+        next({ name: 'dashboard' });
+    } else if (to.path.startsWith('/admin') && !authStore.isAdmin) {
         next({ name: 'dashboard' });
     } else {
         next();

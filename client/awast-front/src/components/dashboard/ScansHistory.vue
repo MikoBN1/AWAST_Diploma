@@ -44,7 +44,7 @@ const handleReport = async (scan: any) => {
 };
 
 const viewScan = (scanId: string) => {
-  router.push(`/scanner/history/${scanId}`);
+  router.push(`/scanner/${scanId}`);
 };
 
 const viewAll = () => {

@@ -67,3 +67,5 @@ watch(
 )
 
 app.mount('#app')
+
+//Ollama path D:\Ollama

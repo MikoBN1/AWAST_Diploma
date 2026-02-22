@@ -24,15 +24,15 @@ async def get_user(user_id: str, current_user: User = Depends(require_admin)):
     return user
 
 @router.post("/new", response_model=UserOut)
-async def create_user(user_data: UserCreate):
+async def create_user(user_data: UserCreate, current_user: User = Depends(require_admin)):
     return await users_service.create_user(user_data)
 
 @router.patch("/{user_id}", response_model=UserOut)
-async def update_user(user_id:str, user_data: UserUpdate):
+async def update_user(user_id:str, user_data: UserUpdate, current_user: User = Depends(require_admin)):
     return await users_service.update_user(user_id,user_data)
 
 @router.delete("/{user_id}", response_model=dict[str, str])
-async def delete_user(user_id: str):
+async def delete_user(user_id: str, current_user: User = Depends(require_admin)):
     return await users_service.delete_user(user_id)
 
 @router.get("/my/scan/history")

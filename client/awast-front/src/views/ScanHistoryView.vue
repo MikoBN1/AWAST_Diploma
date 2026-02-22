@@ -33,7 +33,7 @@ const getStatusColor = (status: string) => {
 };
 
 const viewDetails = (scanId: string) => {
-  router.push(`/scanner/history/${scanId}`);
+  router.push(`/scanner/${scanId}`);
 };
 
 const initiateNewScan = () => {

@@ -1,10 +1,19 @@
 <script setup lang="ts">
 import SettingsDialog from '../dialogs/SettingsDialog.vue'
 import { ref } from 'vue'
+import { useRouter } from 'vue-router';
 import { useLayoutStore } from '../../stores/layoutStore';
+import { useAuthStore } from '../../stores/authStore';
 
 const isSettingsDialogOpen = ref(false)
 const layoutStore = useLayoutStore();
+const authStore = useAuthStore();
+const router = useRouter();
+
+const handleLogout = () => {
+  authStore.logout();
+  router.push('/auth/login');
+};
 </script>
 
 <template>
@@ -39,9 +48,11 @@ const layoutStore = useLayoutStore();
               ></i>
             </div>
             <div>  
-              <router-link to="/auth/login">
-                <i class="bi bi-box-arrow-right resize-icon mr-5"></i>
-              </router-link>
+              <i 
+                class="bi bi-box-arrow-right resize-icon mr-5"
+                style="cursor: pointer;"
+                @click="handleLogout"
+              ></i>
             </div>
        </div>
     </template>

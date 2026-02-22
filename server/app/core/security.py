@@ -47,7 +47,7 @@ async def get_current_user(
     return user
 
 async def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role != "ADMIN":
+    if current_user.role.lower() != "admin":
         raise HTTPException(status_code=403, detail="Admin privileges required")
     return current_user
 
@@ -57,7 +57,7 @@ async def check_domain_permission(
 ) -> User:
     if not domain:
         raise HTTPException(status_code=400, detail="Domain is required")
-    if current_user.role == "ADMIN":
+    if current_user.role.lower() == "admin":
         return current_user
     if not current_user.enabled_domains:
         raise HTTPException(status_code=403, detail="No domains enabled for this user")

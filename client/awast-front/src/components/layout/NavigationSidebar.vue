@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { useLayoutStore } from '../../stores/layoutStore';
+import { useAuthStore } from '../../stores/authStore';
 import logo from '../../assets/img/mini-logo.svg';
 import logo2 from '../../assets/img/logo.svg';
 
 const layoutStore = useLayoutStore();
+const authStore = useAuthStore();
 </script>
 
 <template>
@@ -34,8 +36,10 @@ const layoutStore = useLayoutStore();
       <v-list-item prepend-icon="mdi-history" title="Scan History" value="history" to="/scanner/history" active-color="primary" rounded="lg"></v-list-item>
       <v-list-item prepend-icon="mdi-api" title="Swagger AI" value="swagger" to="/swagger-analysis" active-color="primary" rounded="lg"></v-list-item>
       
-      <v-list-subheader v-if="!layoutStore.rail" class="text-caption text-uppercase font-weight-bold text-grey">Administration</v-list-subheader>
-       <v-list-item prepend-icon="mdi-account-group" title="User Management" value="users" to="/admin/users" active-color="primary" rounded="lg"></v-list-item>
+      <template v-if="authStore.isAdmin">
+        <v-list-subheader v-if="!layoutStore.rail" class="text-caption text-uppercase font-weight-bold text-grey">Administration</v-list-subheader>
+         <v-list-item prepend-icon="mdi-account-group" title="User Management" value="users" to="/admin/users" active-color="primary" rounded="lg"></v-list-item>
+      </template>
 
     </v-list>
     

@@ -23,10 +23,15 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
     (response) => response,
     async (error) => {
-        // Handle 401 errors (e.g., token expiration) if needed
         if (error.response && error.response.status === 401) {
-            // Logic to refresh token or logout
-            // For now, just reject
+            const { useAuthStore } = await import('@/stores/authStore');
+            const router = (await import('@/router')).default;
+
+            const authStore = useAuthStore();
+            authStore.logout();
+            if (router.currentRoute.value.name !== 'login') {
+                router.push({ name: 'login' });
+            }
         }
         return Promise.reject(error);
     }
