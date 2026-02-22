@@ -19,6 +19,7 @@ const password = ref('');
 const errorMsg = ref('');
 const successMsg = ref('');
 const scanPhase = ref(''); // 'scan' | ''
+const isStartingScan = ref(false);
 
 const startScan = async () => {
   if (!targetUrl.value) {
@@ -30,7 +31,9 @@ const startScan = async () => {
   
   try {
     scanPhase.value = 'scan';
+    isStartingScan.value = true;
     await scanStore.startScan(targetUrl.value);
+    isStartingScan.value = false;
     
     if (!scanStore.activeScanId) return;
     
@@ -49,6 +52,7 @@ const startScan = async () => {
       }
     );
   } catch (error: any) {
+    isStartingScan.value = false;
     errorMsg.value = error?.response?.data?.detail || 'Failed to start scan';
     scanPhase.value = '';
   }
@@ -104,6 +108,7 @@ onMounted(() => {
     scanStore.scanProgress = 0;
     scanStore.totalAlertsFound = 0;
     scanStore.activeScanId = null;
+    scanStore.isScanning = false;
   }
 });
 
@@ -118,6 +123,7 @@ watch(
       scanStore.scanProgress = 0;
       scanStore.totalAlertsFound = 0;
       scanStore.activeScanId = null;
+      scanStore.isScanning = false;
       successMsg.value = '';
       errorMsg.value = '';
     }
@@ -172,7 +178,7 @@ watch(
               <!-- URL Input -->
               <div class="mb-5">
                 <label class="input-label mb-2">Target URL</label>
-                <v-text-field
+                  <v-text-field
                   v-model="targetUrl"
                   density="comfortable"
                   placeholder="https://example.com"
@@ -182,7 +188,7 @@ watch(
                   bg-color="white"
                   class="modern-input"
                   hide-details
-                  :disabled="isScanning"
+                  :disabled="isStartingScan"
                 ></v-text-field>
               </div>
 
@@ -203,7 +209,7 @@ watch(
                       color="primary"
                       inset
                       class="ml-4"
-                      :disabled="isScanning"
+                      :disabled="isStartingScan"
                     ></v-switch>
                   </div>
                 </v-card>
@@ -223,7 +229,7 @@ watch(
                       bg-color="white"
                       class="modern-input"
                       hide-details
-                      :disabled="isScanning"
+                      :disabled="isStartingScan"
                     ></v-text-field>
                   </div>
 
@@ -242,7 +248,7 @@ watch(
                       class="modern-input"
                       @click:append-inner="visible = !visible"
                       hide-details
-                      :disabled="isScanning"
+                      :disabled="isStartingScan"
                     ></v-text-field>
                   </div>
                 </div>
@@ -256,10 +262,10 @@ watch(
                 class="text-none font-weight-bold glow-button"
                 prepend-icon="mdi-radar"
                 @click="startScan"
-                :loading="isScanning"
-                :disabled="isScanning"
+                :loading="isStartingScan"
+                :disabled="isStartingScan"
               >
-                {{ isScanning ? 'Scanning...' : 'Start Security Scan' }}
+                {{ isStartingScan ? 'Starting...' : 'Start Security Scan' }}
               </v-btn>
 
               <!-- Info Footer -->
