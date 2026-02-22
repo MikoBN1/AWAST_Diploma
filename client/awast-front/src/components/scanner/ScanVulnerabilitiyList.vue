@@ -100,6 +100,25 @@ const getSeverityConfig = (severity: string) => {
   }
   return configs[severity as keyof typeof configs] || configs.low
 }
+
+// List of currently supported vulnerabilities for the exploitation engine
+const allowedExploits = [
+  'SQL Injection',
+  'Cross Site Scripting (Reflected)',
+  'Cross Site Scripting (Persistent)',
+  'Server Side Template Injection',
+  'Command Injection',
+  'Path Traversal',
+  'XML External Entity'
+];
+
+const isExploitAllowed = (title: string) => {
+  const lowerTitle = title.toLowerCase();
+  if (lowerTitle.includes('sql') || lowerTitle.includes('xss') || lowerTitle.includes('cross site scripting')) {
+    return true;
+  }
+  return allowedExploits.some(allowed => lowerTitle.includes(allowed.toLowerCase()));
+};
 </script>
 
 <template>
@@ -188,15 +207,26 @@ const getSeverityConfig = (severity: string) => {
                 {{ expandedItems.has(vuln.id) ? 'Less' : 'More' }} Details
               </v-btn>
               
-              <v-btn
-                size="small"
-                class="exploit-btn"
-                :class="`exploit-btn-${vuln.severity}`"
-                @click="openExploitDialog(vuln)"
+              <v-tooltip 
+                :text="isExploitAllowed(vuln.title) ? '' : 'This vulnerability is not supported for automatic exploitation yet'" 
+                location="top" 
+                :disabled="isExploitAllowed(vuln.title)"
               >
-                <v-icon size="18" class="mr-1">mdi-bug-play</v-icon>
-                Exploit
-              </v-btn>
+                <template v-slot:activator="{ props }">
+                  <span v-bind="props" class="d-inline-block">
+                    <v-btn
+                      size="small"
+                      class="exploit-btn"
+                      :class="`exploit-btn-${vuln.severity}`"
+                      @click="isExploitAllowed(vuln.title) ? openExploitDialog(vuln) : null"
+                      :disabled="!isExploitAllowed(vuln.title)"
+                    >
+                      <v-icon size="18" class="mr-1">mdi-bug-play</v-icon>
+                      Exploit
+                    </v-btn>
+                  </span>
+                </template>
+              </v-tooltip>
             </div>
           </div>
         </div>
