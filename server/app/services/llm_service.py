@@ -51,10 +51,11 @@ class LLMService:
         - be concise, no extra text
         - response in this format: {"{your payload 1} {your payload 2} ..."}
         - payloads should be unique and suitable for vulnerability type 
+        - ALWAYS wrap HTML attributes in double quotes (e.g. use <img src="x" onerror="alert(1)"/> instead of <img src=x onerror=alert(1)>)
         
         Example:
         Vulnerability Type: XSS
-        Your answer: {"{<script>alert(1)</script>} {\" onerror=alert(1)} {\"autoFocus onfocus=alert(1)} {<img src=x onerror=alert(1)/>} {</script><script>alert(1)</script>}"}
+        Your answer: {"{<script>alert(1)</script>} {\" onerror=\"alert(1)\"} {\"autoFocus onfocus=\"alert(1)\"} {<img src=\"x\" onerror=\"alert(1)\"/>} {</script><script>alert(1)</script>}"}
         """
         llm_response = await self.call_llm(prompt)
         payloads = self.extract_payloads_from_text(llm_response["response"])
