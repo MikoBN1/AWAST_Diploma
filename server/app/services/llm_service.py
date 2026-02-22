@@ -39,23 +39,62 @@ class LLMService:
 
     @staticmethod
     def extract_payloads_from_text(text: str):
+        # Primary parsing: look for `{payload}`
         items = re.findall(r"\{(.*?)}", text)
-        return items
+        
+        # Fallback parsing: if the LLM forgot {} but used formatting like 1. payload, 2. payload, or just lines
+        if not items:
+            # Try splitting by lines and taking non-empty lines that look like code/payloads
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+            for line in lines:
+                # Remove markdown code formatting, list numbers, or bullets
+                clean_line = re.sub(r'^(?:\d+\.|\-|\*|`+)\s*', '', line).strip('`')
+                if clean_line:
+                    items.append(clean_line)
+                    
+        # Use dict.fromkeys to remove duplicates while preserving insertion order
+        return list(dict.fromkeys(items))
 
-    async def ask_for_payloads(self, target:str, vuln_type:str, params:str):
+    async def ask_for_payloads(self, target:str, vuln_type:str, params:str, previous_payloads: list = None):
+        previous_text = ""
+        if previous_payloads:
+            previous_text = f"PREVIOUSLY ATTEMPTED PAYLOADS (DO NOT USE THESE AGAIN):\n" + "\n".join([f"- {p}" for p in previous_payloads])
+
         prompt = f"""
-        You are a pentest assistant. Your task is provide me 5 payloads.
-        For this target: {target} with params {params} and vuln type {vuln_type}, generate 5 payloads.
+        You are an advanced Penetration Testing Assistant. Your task is to provide exactly 5 payloads for an automated scanner.
+        Target URL: {target}
+        Parameter to inject: {params}
+        Vulnerability Type: {vuln_type}
         
-        RULES:
-        - be concise, no extra text
-        - response in this format: {"{your payload 1} {your payload 2} ..."}
-        - payloads should be unique and suitable for vulnerability type 
-        - ALWAYS wrap HTML attributes in double quotes (e.g. use <img src="x" onerror="alert(1)"/> instead of <img src=x onerror=alert(1)>)
+        {previous_text}
         
-        Example:
-        Vulnerability Type: XSS
-        Your answer: {"{<script>alert(1)</script>} {\" onerror=\"alert(1)\"} {\"autoFocus onfocus=\"alert(1)\"} {<img src=\"x\" onerror=\"alert(1)\"/>} {</script><script>alert(1)</script>}"}
+        CRITICAL FORMATTING RULES (DO NOT FAIL):
+        1. YOU MUST STRICTLY WRAP EVERY PAYLOAD IN CURLY BRACES: {{payload}}.
+        2. DO NOT output numbered lists like "1. payload". DO NOT output introductory text.
+        3. Valid output format: {{payload1}} {{payload2}} {{payload3}} {{payload4}} {{payload5}}
+        
+        CRITICAL EXPLOITATION RULES:
+        1. EVERY payload must be thoroughly unique and use a different evasion strategy.
+        2. DO NOT submit minor variations (e.g. alert(1) vs alert(2)).
+        3. IN HTML CONTEXTS ALWAYS wrap HTML attributes in double quotes (e.g., <img src="x" onerror="alert(1)"/>)
+        
+        TECHNIQUES TO USE (Choose 5 DIFFERENT ones for the vulnerability):
+        - Standard Base Vectors (e.g. <script>, <svg>, <iframe>, <object>)
+        - Context Breakout (e.g. " autofocus onfocus="..., " onerror="..., '>-)
+        - Scheme Based (e.g. javascript:, data:, vbscript:)
+        - Encoding/Obfuscation bypass (e.g. URL Encoding, HTML Entities, Hex encoding, eval(atob()))
+        - WAF Evasion (e.g. Mixed case tags <sCrIpT>, Null bytes, whitespace manipulation, template injections)
+        - Polyglots
+        
+        CRITICAL: For XSS, you MUST provide exactly one payload from each of these 5 categories. DO NOT REPEAT a category (e.g., do not provide two <script> tags, or two onerror= events):
+        1. A `<script>` tag execution.
+        2. An HTML tag event handler (e.g., `<svg onload=...>`, `<img onerror=...>`, `<body onload=...>`, autofocus).
+        3. A Javascript URI scheme (`javascript:alert(1)`).
+        4. An execution via an exotic tag/attribute (e.g., `<iframe>`, `<object>`, `<embed>`).
+        5. A WAF evasion technique (e.g., mixed case, encoded, or obfuscated like `eval(atob(...))`).
+        
+        Example Output for XSS:
+        {{<script>alert(1)</script>}} {{\" autofocus onfocus=\"alert(1)\"}} {{<svg/onload=\"alert(1)\">}} {{javascript:alert(1)}} {{"/><script>eval(atob("YWxlcnQoMSk="));</script>}}
         """
         llm_response = await self.call_llm(prompt)
         payloads = self.extract_payloads_from_text(llm_response["response"])
