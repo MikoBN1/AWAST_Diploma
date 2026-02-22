@@ -18,3 +18,4 @@ services:
     environment:
       - ZAP_MODE=daemon
       - ZAP_PORT=8080
+      - ZAP_API_KEY=changeme

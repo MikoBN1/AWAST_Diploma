@@ -2,8 +2,10 @@ import apiClient from './httpClient';
 import type { RequestBody } from '@/types/api';
 
 export default {
-    async startSpider(target: string) {
-        const response = await apiClient.post('/zap/spider', { target } as RequestBody);
+    async startSpider(target: string, cookies?: Record<string, string>) {
+        const body: RequestBody = { target };
+        if (cookies) body.cookies = cookies;
+        const response = await apiClient.post('/zap/spider', body);
         return response.data;
     },
 
@@ -12,8 +14,10 @@ export default {
         return response.data;
     },
 
-    async startScan(target: string) {
-        const response = await apiClient.post('/zap/scan', { target } as RequestBody);
+    async startScan(target: string, cookies?: Record<string, string>) {
+        const body: RequestBody = { target };
+        if (cookies) body.cookies = cookies;
+        const response = await apiClient.post('/zap/scan', body);
         return response.data;
     },
 

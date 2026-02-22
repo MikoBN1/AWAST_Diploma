@@ -20,11 +20,11 @@ export const useScanStore = defineStore('scan', {
         targetUrl: null as string | null,
     }),
     actions: {
-        async startSpider(target: string) {
+        async startSpider(target: string, cookies?: Record<string, string>) {
             this.isScanning = true;
             this.targetUrl = target;
             try {
-                const response = await zapService.startSpider(target);
+                const response = await zapService.startSpider(target, cookies);
                 this.activeScanId = response.scan;
                 return response;
             } catch (error) {
@@ -32,7 +32,7 @@ export const useScanStore = defineStore('scan', {
                 throw error;
             }
         },
-        async startScan(target: string) {
+        async startScan(target: string, cookies?: Record<string, string>) {
             this.isScanning = true;
             this.targetUrl = target;
             this.scanProgress = 0;
@@ -40,7 +40,7 @@ export const useScanStore = defineStore('scan', {
             this.alerts = [];
 
             try {
-                const response = await zapService.startScan(target);
+                const response = await zapService.startScan(target, cookies);
                 this.activeScanId = response.scan_id;
                 return response;
             } catch (error) {
@@ -142,6 +142,14 @@ export const useScanStore = defineStore('scan', {
                 }
             } catch (error) {
                 console.error('Failed to check scan status', error);
+            }
+        },
+        async checkSpiderStatus(spiderId: string) {
+            try {
+                return await zapService.getSpiderStatus(spiderId);
+            } catch (error) {
+                console.error('Failed to check spider status', error);
+                throw error;
             }
         },
         async loadAlerts(baseUrl?: string) {

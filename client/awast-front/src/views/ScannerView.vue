@@ -12,14 +12,51 @@ const route = useRoute();
 const { isScanning, scanProgress } = storeToRefs(scanStore);
 
 const model = ref(true);
-const visible = ref(false);
 const targetUrl = ref('');
-const username = ref('');
-const password = ref('');
 const errorMsg = ref('');
+
+// Cookies key-value editor
+interface CookieEntry {
+  key: string;
+  value: string;
+}
+const cookieEntries = ref<CookieEntry[]>([]);
+
+const addCookieEntry = () => {
+  cookieEntries.value.push({ key: '', value: '' });
+};
+
+const removeCookieEntry = (index: number) => {
+  cookieEntries.value.splice(index, 1);
+};
+
+const buildCookiesObject = (): Record<string, string> | undefined => {
+  const entries = cookieEntries.value.filter(e => e.key.trim() !== '');
+  if (entries.length === 0) return undefined;
+  return Object.fromEntries(entries.map(e => [e.key.trim(), e.value]));
+};
 const successMsg = ref('');
-const scanPhase = ref(''); // 'scan' | ''
+const scanPhase = ref(''); // 'spider' | 'scan' | ''
 const isStartingScan = ref(false);
+
+const pollSpiderStatus = (spiderId: string): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const interval = setInterval(async () => {
+      try {
+        const status = await scanStore.checkSpiderStatus(spiderId);
+        const progress = parseInt(status?.status ?? '0', 10);
+        scanStore.scanProgress = progress;
+        if (progress >= 100) {
+          clearInterval(interval);
+          resolve();
+        }
+      } catch (err) {
+        clearInterval(interval);
+        reject(err);
+      }
+    }, 2000);
+  });
+};
 
 const startScan = async () => {
   if (!targetUrl.value) {
@@ -28,15 +65,26 @@ const startScan = async () => {
   }
   errorMsg.value = '';
   successMsg.value = '';
-  
+  const cookies = buildCookiesObject();
+
   try {
-    scanPhase.value = 'scan';
+    // Phase 1 — Spider
+    scanPhase.value = 'spider';
     isStartingScan.value = true;
-    await scanStore.startScan(targetUrl.value);
+    const spiderRes = await scanStore.startSpider(targetUrl.value, cookies);
+    const spiderId = spiderRes?.scan ?? spiderRes?.scan_id;
+    if (!spiderId) throw new Error('Spider did not return a scan ID');
+
+    await pollSpiderStatus(spiderId);
+
+    // Phase 2 — Active Scan
+    scanPhase.value = 'scan';
+    scanStore.scanProgress = 0;
+    await scanStore.startScan(targetUrl.value, cookies);
     isStartingScan.value = false;
-    
+
     if (!scanStore.activeScanId) return;
-    
+
     // Connect to the WebSocket for live updates
     scanStore.connectToScanSocket(
       scanStore.activeScanId,
@@ -159,7 +207,7 @@ watch(
                 </div>
                 <h2 class="text-h5 font-weight-bold text-slate-800 mb-2">Configure Your Scan</h2>
                 <p class="text-body-2 text-grey-darken-1">
-                  Enter your target URL and optional authentication credentials
+                  Enter your target URL and optional session cookies for authenticated scanning
                 </p>
               </div>
 
@@ -171,7 +219,7 @@ watch(
               <v-alert v-if="isScanning" type="info" variant="tonal" density="compact" class="mb-4">
                 <div class="d-flex align-center">
                   <v-progress-circular indeterminate size="20" width="2" class="mr-3"></v-progress-circular>
-                  <span>Active scanning in progress... {{ scanProgress }}% complete</span>
+                  <span>{{ scanPhase === 'spider' ? 'Spidering' : 'Active scanning' }} in progress... {{ scanProgress }}% complete</span>
                 </div>
               </v-alert>
 
@@ -192,15 +240,15 @@ watch(
                 ></v-text-field>
               </div>
 
-              <!-- Authentication Toggle -->
+              <!-- Cookies Toggle -->
               <div class="auth-section mb-5">
                 <v-card class="toggle-card pa-4" elevation="0">
                   <div class="d-flex align-center justify-space-between">
                     <div class="d-flex align-center">
-                      <v-icon icon="mdi-account-lock" color="primary" class="mr-3"></v-icon>
+                      <v-icon icon="mdi-cookie" color="primary" class="mr-3"></v-icon>
                       <div>
-                        <div class="font-weight-medium text-slate-800">Enable Authentication</div>
-                        <div class="text-caption text-grey-darken-1">Scan authenticated areas of your application</div>
+                        <div class="font-weight-medium text-slate-800">Session Cookies</div>
+                        <div class="text-caption text-grey-darken-1">Add cookies for authenticated scanning (e.g. PHPSESSID)</div>
                       </div>
                     </div>
                     <v-switch
@@ -215,43 +263,51 @@ watch(
                 </v-card>
               </div>
 
-              <!-- Credentials Section -->
-              <div v-show="model" class="credentials-section">
-                  <div class="mb-4">
-                    <label class="input-label mb-2">Username or Email</label>
+              <!-- Cookies Editor Section -->
+              <v-expand-transition>
+                <div v-if="model" class="credentials-section">
+                  <div v-for="(entry, index) in cookieEntries" :key="index" class="d-flex align-center mb-3">
                     <v-text-field
-                      v-model="username"
+                      v-model="entry.key"
                       density="comfortable"
-                      placeholder="Enter username or email"
-                      prepend-inner-icon="mdi-account-outline"
+                      placeholder="e.g. PHPSESSID"
+                      label="Cookie Name"
+                      prepend-inner-icon="mdi-key-variant"
                       variant="outlined"
                       color="primary"
                       bg-color="white"
-                      class="modern-input"
+                      class="modern-input mr-3"
                       hide-details
                       :disabled="isStartingScan"
                     ></v-text-field>
-                  </div>
-
-                  <div class="mb-6">
-                    <label class="input-label mb-2">Password</label>
                     <v-text-field
-                      v-model="password"
-                      :append-inner-icon="visible ? 'mdi-eye-off' : 'mdi-eye'"
-                      :type="visible ? 'text' : 'password'"
+                      v-model="entry.value"
                       density="comfortable"
-                      placeholder="Enter password"
-                      prepend-inner-icon="mdi-lock-outline"
+                      placeholder="Cookie value"
+                      label="Cookie Value"
+                      prepend-inner-icon="mdi-text-short"
                       variant="outlined"
                       color="primary"
                       bg-color="white"
-                      class="modern-input"
-                      @click:append-inner="visible = !visible"
+                      class="modern-input mr-3"
                       hide-details
                       :disabled="isStartingScan"
                     ></v-text-field>
+                    <v-btn icon="mdi-close" size="small" variant="text" color="red" @click="removeCookieEntry(index)"></v-btn>
                   </div>
+                  <v-btn
+                    variant="tonal"
+                    color="primary"
+                    size="small"
+                    prepend-icon="mdi-plus"
+                    class="text-none mb-4"
+                    @click="addCookieEntry"
+                    :disabled="isStartingScan"
+                  >
+                    Add Cookie
+                  </v-btn>
                 </div>
+              </v-expand-transition>
 
               <!-- Action Button -->
               <v-btn

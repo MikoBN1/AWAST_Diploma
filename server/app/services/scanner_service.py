@@ -1,6 +1,8 @@
 import asyncio
 import logging
 from datetime import datetime
+from typing import Dict, Optional
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +30,53 @@ async def _zap_get(client: httpx.AsyncClient, url: str, params: dict) -> dict:
     return resp.json()
 
 
-async def start_spider(target: str) -> dict:
+async def _setup_zap_session(
+    client: httpx.AsyncClient,
+    cookies: Dict[str, str],
+) -> None:
+    """Inject authentication cookies into ZAP via Replacer add-on.
+
+    The Replacer add a Cookie header to ALL outgoing ZAP requests,
+    ensuring spider and active scanner both work authenticated.
+    """
+    cookie_string = "; ".join(f"{k}={v}" for k, v in cookies.items())
+    rule_description = "AWAST_AUTH_COOKIES"
+
+    # Remove existing rule if present (idempotent)
+    try:
+        await _zap_get(
+            client,
+            f"{settings.ZAP_API_URL}/JSON/replacer/action/removeRule/",
+            {"apikey": settings.ZAP_API_KEY, "description": rule_description},
+        )
+    except Exception:
+        pass
+
+    await _zap_get(
+        client,
+        f"{settings.ZAP_API_URL}/JSON/replacer/action/addRule/",
+        {
+            "apikey": settings.ZAP_API_KEY,
+            "description": rule_description,
+            "enabled": "true",
+            "matchType": "REQ_HEADER",
+            "matchRegex": "false",
+            "matchString": "Cookie",
+            "replacement": cookie_string,
+        },
+    )
+    logger.info(f"ZAP Replacer rule set with {len(cookies)} cookie(s)")
+
+
+async def start_spider(
+    target: str, cookies: Optional[Dict[str, str]] = None
+) -> dict:
     async with httpx.AsyncClient(timeout=60.0) as client:
+        if cookies:
+            try:
+                await _setup_zap_session(client, cookies)
+            except Exception as e:
+                logger.warning(f"Failed to setup ZAP session for spider: {e}")
         return await _zap_get(
             client,
             f"{settings.ZAP_API_URL}/JSON/spider/action/scan/",
@@ -46,18 +93,44 @@ async def get_spider_status(scan_id: str) -> dict:
         )
 
 
-async def start_scan(target: str, user_id: str, db: AsyncSession) -> dict:
+async def start_scan(
+    target: str,
+    user_id: str,
+    db: AsyncSession,
+    cookies: Optional[Dict[str, str]] = None,
+) -> dict:
     database_service = AsyncDatabaseService(lambda: db)
     async with httpx.AsyncClient(timeout=60.0) as client:
-        # Ensure the URL is in ZAP's site tree before scanning
+        # Inject auth cookies into ZAP via Replacer if provided
+        if cookies:
+            try:
+                await _setup_zap_session(client, cookies)
+            except Exception as e:
+                logger.warning(f"Failed to setup ZAP session for {target}: {e}")
+
+        # Spider the target to discover forms and parameters
         try:
-            await _zap_get(
+            spider_resp = await _zap_get(
                 client,
-                f"{settings.ZAP_API_URL}/JSON/core/action/accessUrl/",
-                {"apikey": settings.ZAP_API_KEY, "url": target, "followRedirects": "true"}
+                f"{settings.ZAP_API_URL}/JSON/spider/action/scan/",
+                {"apikey": settings.ZAP_API_KEY, "url": target},
             )
+            spider_id = spider_resp.get("scan")
+            logger.info(f"Spider started for {target} with id={spider_id}")
+
+            for _ in range(120):
+                status_resp = await _zap_get(
+                    client,
+                    f"{settings.ZAP_API_URL}/JSON/spider/view/status/",
+                    {"apikey": settings.ZAP_API_KEY, "scanId": spider_id},
+                )
+                if int(status_resp.get("status", 0)) >= 100:
+                    break
+                await asyncio.sleep(2)
+
+            logger.info(f"Spider completed for {target}")
         except Exception as e:
-            logger.warning(f"Failed to accessUrl {target} before scan: {e}")
+            logger.warning(f"Spider failed for {target}: {e}")
 
         data = await _zap_get(
             client,

@@ -13,7 +13,7 @@ router = APIRouter(prefix="/zap", tags=["scanner"])
 
 @router.post("/spider", dependencies=[Depends(get_current_user)])
 async def zap_spider(target: RequestBody):
-    return await scanner_service.start_spider(target.target)
+    return await scanner_service.start_spider(target.target, cookies=target.cookies)
 
 
 @router.get("/spider_status/{scan_id}", dependencies=[Depends(get_current_user)])
@@ -28,12 +28,14 @@ async def zap_scan(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await scanner_service.start_scan(target.target, user.user_id, db)
+    result = await scanner_service.start_scan(
+        target.target, user.user_id, db, cookies=target.cookies
+    )
     background_tasks.add_task(
         scanner_service.run_scan,
         result["scan_id"],
         target.target,
-        result["zap_index"]
+        result["zap_index"],
     )
     return {"scan_id": result["scan_id"], "scan_index": result["scan_index"]}
 

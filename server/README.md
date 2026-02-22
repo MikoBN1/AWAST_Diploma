@@ -5,7 +5,13 @@
 ## 🚀 Features
 
 *   **🛡️ Automated Scanning**: Full integration with OWASP ZAP to perform Spidering and Active Attacks.
-*   **🤖 AI-Powered Exploitation**: Uses LLMs (via `LLMService`) to generate context-aware payloads for verified vulnerabilities.
+*   **🤖 AI-Powered Exploitation Engine**: Uses LLMs (Ollama + external providers via `LLMService`) to generate context-aware payloads and parse complex server responses for zero-day-like exploitation. Includes 6 advanced techniques:
+    *   **Context-Aware XSS**: Extracts reflection scopes from HTML and generates breakout payloads dynamically.
+    *   **WAF Bypassing**: Analyzes HTTP `403/401` blocks and recursively mutates payloads using advanced encoding/obfuscation.
+    *   **SSTI Engine Identification**: Reads HTML error stack traces to detect the template engine and craft an RCE payload.
+    *   **API Parameter Guessing (IDOR/Mass Assignment)**: Deeply inspects JSON structures to hallucinate and inject hidden privilege parameters (e.g., `"role": "admin"`).
+    *   **Prompt Injection / AI Jailbreak**: Red-teams underlying AI targets by generating adaptive jailbreak prompts.
+    *   **Error-Based SQL Analysis**: Parses complex DBMS error messages directly to construct the exact SQL payload required.
 *   **🕵️ Attack Verification**: Automated `ExploiterService` that uses `Playwright` to test generated payloads against the target, confirming real-world risk.
 *   **🔌 Plugin System**: Modular architecture supporting specific vulnerability checks:
     *   Cross-Site Scripting (XSS)

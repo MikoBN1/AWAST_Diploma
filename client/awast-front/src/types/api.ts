@@ -29,17 +29,37 @@ export interface UserLogin {
 
 export interface RequestBody {
   target: string;
+  cookies?: Record<string, string>;
 }
 
 export interface ExploiterRequestBody {
   target: string;
-  params?: string;
-  vuln_type?: string;
-  username?: string;
-  password?: string;
-  login_url?: string;
-  method?: string;
+  params: string;
+  vuln_type: string;
+  cookies?: Record<string, string>;
+  method: string;
+  ws_id?: string;
 }
+
+export interface ExploiterConfirmedResponse {
+  status: 'confirmed';
+  vuln_type: string;
+  target: string;
+  parameter: string;
+  working_payload: string;
+  tried_payloads: string[];
+  proof: string;
+  curl: string;
+  message: string;
+}
+
+export interface ExploiterPotentialResponse {
+  status: 'potential';
+  message: string;
+  tried_payloads: string[];
+}
+
+export type ExploiterResponse = ExploiterConfirmedResponse | ExploiterPotentialResponse;
 
 export interface ReportRequest {
   scan_id: string;

@@ -103,3 +103,70 @@ class LLMService:
             return "[]"
         except:
             return "[]"
+
+    async def generate_context_aware_xss(self, context_html: str) -> str:
+        prompt = f"""
+        You are a penetration testing assistant. The input is reflected in the following HTML context:
+        {context_html}
+        Generate a single highly advanced XSS payload that breaks out of this specific context.
+        Provide JUST the payload, no other text.
+        """
+        response = await self.call_llm(prompt)
+        return response["response"].strip()
+
+    async def generate_waf_bypass(self, vuln_type: str, blocked_payload: str) -> str:
+        prompt = f"""
+        You are a penetration testing assistant. The payload '{blocked_payload}' for '{vuln_type}' was blocked by a WAF.
+        Generate 1 obfuscated variation of this payload using URL encoding, comments, or other bypass techniques.
+        Provide JUST the payload, no other text.
+        """
+        response = await self.call_llm(prompt)
+        return response["response"].strip()
+
+    async def analyze_ssti_error(self, error_trace: str) -> str:
+        prompt = f"""
+        You are a penetration testing assistant. Based on this HTML error stack trace:
+        {error_trace[:1000]}
+        What template engine is the server using, and what is the payload to achieve Remote Code Execution?
+        Provide JUST the payload, no other text.
+        """
+        response = await self.call_llm(prompt)
+        return response["response"].strip()
+
+    async def guess_api_parameters(self, json_structure: dict) -> dict:
+        import json
+        prompt = f"""
+        You are a penetration testing assistant. Here is a JSON object for a target API: {json.dumps(json_structure)}.
+        Predict hidden JSON properties that might grant admin privileges or access to other users (e.g., "role": "admin").
+        Provide the answer as a ONLY ONE JSON object with those additional properties merged into the original, no other text.
+        """
+        response = await self.call_llm(prompt)
+        text_response = response["response"]
+        try:
+            start = text_response.find('{')
+            end = text_response.rfind('}') + 1
+            if start != -1 and end != -1:
+                return json.loads(text_response[start:end])
+            return json_structure
+        except:
+            return json_structure
+
+    async def analyze_sql_error(self, error_response: str) -> str:
+        prompt = f"""
+        You are a penetration testing assistant. Here is a database error message:
+        {error_response[:1000]}
+        Based on this error, what is the exact SQL payload to exploit this vulnerability?
+        Provide JUST the payload, no other text.
+        """
+        response = await self.call_llm(prompt)
+        return response["response"].strip()
+
+    async def generate_prompt_injection(self, target_response: str = "") -> str:
+        prompt = f"""
+        You are an AI red teamer. Generate a single highly advanced payload for Prompt Injection / AI Jailbreaking.
+        """
+        if target_response:
+             prompt += f"\nThe previous attempt resulted in: {target_response[:500]}. Adapt the payload."
+        prompt += "\nProvide JUST the payload, no other text."
+        response = await self.call_llm(prompt)
+        return response["response"].strip()
