@@ -18,6 +18,13 @@ from services.database_service import AsyncDatabaseService
 from services.websocket_service import manager
 from services.ai_checker_service import AICheckerService
 
+# ZAP Confidence mapping: 0=Low, 1=Medium, 2=High
+CONFIDENCE_MAP = {
+    "Low": "0",
+    "Medium": "1",
+    "High": "2"
+}
+
 async def _zap_get(client: httpx.AsyncClient, url: str, params: dict) -> dict:
     resp = await client.get(url, params=params)
     try:
@@ -108,6 +115,18 @@ async def start_scan(
                 await _setup_zap_session(client, cookies)
             except Exception as e:
                 logger.warning(f"Failed to setup ZAP session for {target}: {e}")
+
+        # Set minimum confidence threshold in ZAP
+        try:
+            threshold = CONFIDENCE_MAP.get(settings.ZAP_MIN_CONFIDENCE, "1")
+            await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/ascan/action/setOptionAlertThreshold/",
+                {"apikey": settings.ZAP_API_KEY, "String": threshold}
+            )
+            logger.info(f"ZAP Alert Threshold set to {settings.ZAP_MIN_CONFIDENCE} ({threshold})")
+        except Exception as e:
+            logger.warning(f"Failed to set ZAP Alert Threshold: {e}")
 
         # Spider the target to discover forms and parameters
         try:
@@ -205,7 +224,22 @@ async def get_alerts_with_evidence(baseurl: str = None) -> dict:
                     "tags": a.get("tags"),
                     "cweid": a.get("cweid"),
                 })
-        filtered = [a for a in unique_alerts if a.get("evidence")]
+        
+        # Filter by minimum confidence level
+        min_conf = settings.ZAP_MIN_CONFIDENCE
+        confidence_threshold = int(CONFIDENCE_MAP.get(min_conf, "1"))
+        
+        filtered = []
+        for a in unique_alerts:
+            if not a.get("evidence"):
+                continue
+            
+            # ZAP confidence labels to numeric for comparison
+            conf_label = a.get("confidence", "Low")
+            conf_val = int(CONFIDENCE_MAP.get(conf_label, "0"))
+            
+            if conf_val >= confidence_threshold:
+                filtered.append(a)
 
         return {"count": len(filtered), "alerts": filtered}
 
@@ -311,6 +345,19 @@ async def _run_scan_internal(scan_id: int, target_url: str, scan_index: str, db:
             )
             data = resp.json()
             vulnerabilities_raw = data.get("alerts", [])
+            
+            # Filter by minimum confidence level
+            min_conf = settings.ZAP_MIN_CONFIDENCE
+            confidence_threshold = int(CONFIDENCE_MAP.get(min_conf, "1"))
+            
+            filtered_vulnerabilities = []
+            for v in vulnerabilities_raw:
+                conf_label = v.get("confidence", "Low")
+                conf_val = int(CONFIDENCE_MAP.get(conf_label, "0"))
+                if conf_val >= confidence_threshold:
+                    filtered_vulnerabilities.append(v)
+            
+            vulnerabilities_raw = filtered_vulnerabilities
             alerts_data = []
 
             ai_checker = AICheckerService()
