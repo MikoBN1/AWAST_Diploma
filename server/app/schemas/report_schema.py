@@ -12,7 +12,15 @@ class Vulnerability(BaseModel):
     tags: dict[str, str]
     solution: Optional[str]
     references: Optional[List[str]] = None  # строки ссылок после split('\n')
-
+    
+    # New AI and context fields
+    parameter: Optional[str] = None
+    payload: Optional[str] = None
+    request: Optional[str] = None
+    response: Optional[str] = None
+    ai_status: Optional[str] = None
+    ai_reasoning: Optional[str] = None
+    confidence_score: Optional[int] = None
 
 class VulnerabilityReport(BaseModel):
     vulns: List[Vulnerability]

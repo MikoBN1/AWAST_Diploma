@@ -16,6 +16,7 @@ from models.vulnerability_model import Vulnerability
 from schemas.report_schema import Vulnerability as VulnerabilitySchema
 from services.database_service import AsyncDatabaseService
 from services.websocket_service import manager
+from services.ai_checker_service import AICheckerService
 
 async def _zap_get(client: httpx.AsyncClient, url: str, params: dict) -> dict:
     resp = await client.get(url, params=params)
@@ -309,14 +310,62 @@ async def _run_scan_internal(scan_id: int, target_url: str, scan_index: str, db:
                 params={"apikey": settings.ZAP_API_KEY, "baseurl": target_url}
             )
             data = resp.json()
-            vulnerabilities = [VulnerabilitySchema(**v) for v in data.get("alerts", [])]
-
+            vulnerabilities_raw = data.get("alerts", [])
             alerts_data = []
-            for vuln in vulnerabilities:
-                vuln_data = vuln.model_dump()
-                vuln_data["url"] = str(vuln_data["url"])
-                await database_service.create(Vulnerability(**vuln_data, scan_id=scan_id))
-                alerts_data.append(vuln_data)
+
+            ai_checker = AICheckerService()
+
+            for vuln_raw in vulnerabilities_raw:
+                try:
+                    # Map to schema (ignoring extra fields like parameter/payload which are handled below)
+                    vuln = VulnerabilitySchema(**vuln_raw)
+                    vuln_data = vuln.model_dump()
+                    vuln_data["url"] = str(vuln_data["url"])
+                    
+                    # Extract context data
+                    message_id = vuln_raw.get("messageId")
+                    parameter = vuln_raw.get("param")
+                    payload = vuln_raw.get("attack")
+                    
+                    request_text = ""
+                    response_text = ""
+                    
+                    # Fetch raw HTTP message
+                    if message_id:
+                        try:
+                            msg_resp = await client.get(
+                                f"{settings.ZAP_API_URL}/JSON/core/view/message/",
+                                params={"apikey": settings.ZAP_API_KEY, "id": message_id}
+                            )
+                            msg_data = msg_resp.json().get("message", {})
+                            request_text = msg_data.get("requestHeader", "") + "\n\n" + msg_data.get("requestBody", "")
+                            response_text = msg_data.get("responseHeader", "") + "\n\n" + msg_data.get("responseBody", "")
+                        except Exception as e:
+                            logger.error(f"Failed to fetch ZAP message ID {message_id}: {e}")
+                    
+                    # Call AI reasoning
+                    ai_result = await ai_checker.verify_vulnerability(
+                        vuln_type=vuln_data.get("name"),
+                        url=vuln_data.get("url"),
+                        parameter=parameter,
+                        payload=payload,
+                        request_text=request_text,
+                        response_text=response_text
+                    )
+                    
+                    # Enrich data
+                    vuln_data["parameter"] = parameter
+                    vuln_data["payload"] = payload
+                    vuln_data["request"] = request_text
+                    vuln_data["response"] = response_text
+                    vuln_data["ai_status"] = "False Positive" if ai_result.is_false_positive else "Verified"
+                    vuln_data["ai_reasoning"] = ai_result.reasoning
+                    vuln_data["confidence_score"] = ai_result.confidence_score
+
+                    await database_service.create(Vulnerability(**vuln_data, scan_id=scan_id))
+                    alerts_data.append(vuln_data)
+                except Exception as ex:
+                    logger.error(f"Error processing vulnerability row: {ex}", exc_info=True)
 
             await database_service.update(
                 Scan,
@@ -327,11 +376,11 @@ async def _run_scan_internal(scan_id: int, target_url: str, scan_index: str, db:
             await manager.broadcast(str(scan_id), {
                 "type": "done",
                 "progress": 100,
-                "alerts_count": len(vulnerabilities),
+                "alerts_count": len(alerts_data),
                 "total_alerts": len(seen_alert_ids),
                 "alerts": alerts_data
             })
-            logger.info(f"Scan {scan_id} completed successfully. Found {len(vulnerabilities)} vulnerabilities.")
+            logger.info(f"Scan {scan_id} completed successfully. Found {len(alerts_data)} vulnerabilities.")
 
     except Exception as e:
         await database_service.update(

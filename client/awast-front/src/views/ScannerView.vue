@@ -14,6 +14,7 @@ const { isScanning, scanProgress } = storeToRefs(scanStore);
 const model = ref(true);
 const targetUrl = ref('');
 const errorMsg = ref('');
+const hideFalsePositives = ref(false);
 
 // Cookies key-value editor
 interface CookieEntry {
@@ -300,7 +301,7 @@ watch(
                     color="primary"
                     size="small"
                     prepend-icon="mdi-plus"
-                    class="text-none mb-4"
+                    class="text-none"
                     @click="addCookieEntry"
                     :disabled="isStartingScan"
                   >
@@ -349,9 +350,25 @@ watch(
         </v-col>
       </v-row>
 
+      <v-row class="mb-4 d-flex align-center justify-end pr-4">
+        <v-switch
+          v-model="hideFalsePositives"
+          color="success"
+          inset
+          hide-details
+          class="flex-grow-0"
+        >
+          <template v-slot:label>
+            <span class="text-body-2 font-weight-medium" :class="hideFalsePositives ? 'text-success' : 'text-grey-darken-1'">
+              Hide AI-Flagged False Positives
+            </span>
+          </template>
+        </v-switch>
+      </v-row>
+
       <!-- Vulnerabilities List -->
       <v-row class="mb-8">
-        <ScanVulnerabilitiyList/>
+        <ScanVulnerabilitiyList :hideFalsePositives="hideFalsePositives" />
       </v-row>
     </v-container>
   </div>
