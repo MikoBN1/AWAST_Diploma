@@ -216,16 +216,6 @@ const isExploitAllowed = (title: string) => {
                   <v-icon size="20" color="#8b5cf6" class="mr-2">mdi-brain</v-icon>
                   <span class="ai-label font-weight-bold" style="color: #8b5cf6">AI Analysis (Confidence: {{ vuln.confidence_score }}%)</span>
                 </div>
-                <!-- Human In The Loop Feedback -->
-                <div class="ai-feedback d-flex align-center bg-white px-2 py-1 rounded shadow-sm border">
-                    <span class="text-caption text-grey-darken-1 mr-2 font-weight-medium">Was AI correct?</span>
-                    <v-btn icon size="x-small" variant="text" color="success" class="mr-1 hover-scale" @click.stop="console.log('Thumbs Up clicked for', vuln.id)">
-                      <v-icon>mdi-thumb-up-outline</v-icon>
-                    </v-btn>
-                    <v-btn icon size="x-small" variant="text" color="error" class="hover-scale" @click.stop="console.log('Thumbs Down clicked for', vuln.id)">
-                      <v-icon>mdi-thumb-down-outline</v-icon>
-                    </v-btn>
-                </div>
               </div>
               <div class="ai-reasoning-content mt-3 p-4 rounded bg-white shadow-inner">
                 <p class="text-body-2 text-slate-700 m-0" style="line-height: 1.6;">{{ vuln.ai_reasoning }}</p>
@@ -251,27 +241,6 @@ const isExploitAllowed = (title: string) => {
                 </v-icon>
                 {{ expandedItems.has(vuln.id) ? 'Less' : 'More' }} Details
               </v-btn>
-              
-              <v-tooltip 
-                :text="isExploitAllowed(vuln.title) ? '' : 'This vulnerability is not supported for automatic exploitation yet'" 
-                location="top" 
-                :disabled="isExploitAllowed(vuln.title)"
-              >
-                <template v-slot:activator="{ props }">
-                  <span v-bind="props" class="d-inline-block">
-                    <v-btn
-                      size="small"
-                      class="exploit-btn"
-                      :class="`exploit-btn-${vuln.severity}`"
-                      @click="isExploitAllowed(vuln.title) ? openExploitDialog(vuln) : null"
-                      :disabled="!isExploitAllowed(vuln.title)"
-                    >
-                      <v-icon size="18" class="mr-1">mdi-bug-play</v-icon>
-                      Exploit
-                    </v-btn>
-                  </span>
-                </template>
-              </v-tooltip>
             </div>
           </div>
         </div>
