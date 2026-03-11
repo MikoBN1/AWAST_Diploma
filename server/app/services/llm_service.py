@@ -1,41 +1,41 @@
-import os
-from dotenv import load_dotenv
 import httpx
 import re
+import logging
+from core.config import settings
 
-load_dotenv()
-LLM_URL= os.getenv("LLM_URL")
-MODEL = os.getenv("MODEL")
+logger = logging.getLogger(__name__)
+
 class LLMService:
-    def __init__(self, llm_url: str = LLM_URL, model: str = MODEL):
-        self.client = httpx.AsyncClient(verify=False, timeout=None)
-        self.url = llm_url
-        self.model = model
+    def __init__(self):
+        self.api_key = settings.GOOGLE_API_KEY
+        self.client = httpx.AsyncClient(timeout=60.0)
+        self.model = "gemini-1.5-flash"
+        self.url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
 
     async def call_llm(self, prompt: str):
-        body = self.create_request_body(prompt)
+        body = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": prompt}
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0
+            }
+        }
 
         resp = await self.client.post(self.url, json=body)
         resp.raise_for_status()
-
-        return resp.json()
-
-    # @staticmethod
-    # async def call_llm(prompt: str):
-    #     await asyncio.sleep(3)
-    #     return {"text":"content: {<script>alert(1)</script>} {<img src=x onerror=alert(1)>} {javascript:alert(1)}"}
-
-    def create_request_body(self, prompt: str):
-        return {
-            "prompt": prompt,
-            "temperature": 0,
-            "model": self.model,
-            "stream": False,
-            "options": {
-                "num_ctx": 8192,
-                "num_thread": 4,
-            }
-        }
+        
+        data = resp.json()
+        try:
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+            return {"response": text}
+        except (KeyError, IndexError) as e:
+            logger.error(f"Failed to parse Gemini response: {data}")
+            return {"response": ""}
 
     @staticmethod
     def extract_payloads_from_text(text: str):
