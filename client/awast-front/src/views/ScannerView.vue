@@ -3,6 +3,7 @@ import { ref, onUnmounted, onMounted, watch } from "vue";
 import { useRoute } from 'vue-router';
 import { useScanStore } from '@/stores/scanStore';
 import { storeToRefs } from 'pinia';
+import zapService from '@/services/zapService';
 import ScanInfoBlocks from "../components/scanner/ScanInfoBlocks.vue";
 import ScanVulnerabilitiesProgress from "../components/scanner/ScanVulnerabilitiesProgress.vue";
 import ScanVulnerabilitiyList from "../components/scanner/ScanVulnerabilitiyList.vue";
@@ -116,19 +117,21 @@ const startScan = async () => {
 
 const stopScan = async () => {
   try {
-    if (spiderPollInterval.value) {
-      clearInterval(spiderPollInterval.value);
-      spiderPollInterval.value = null;
-    }
-
-    await scanStore.stopScan();
-
     if (scanPhase.value === 'spider') {
+      if (spiderPollInterval.value) {
+        clearInterval(spiderPollInterval.value);
+        spiderPollInterval.value = null;
+      }
+      if (scanStore.activeScanId) {
+        await zapService.stopSpider(scanStore.activeScanId);
+      }
       scanPhase.value = '';
       isStartingScan.value = false;
       scanStore.isScanning = false;
       scanStore.isStopping = false;
       successMsg.value = 'Scan was stopped.';
+    } else {
+      await scanStore.stopScan();
     }
   } catch (error: any) {
     errorMsg.value = error?.response?.data?.detail || 'Failed to stop scan';

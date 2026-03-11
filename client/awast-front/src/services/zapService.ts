@@ -48,6 +48,11 @@ export default {
         return response.data;
     },
 
+    async stopSpider(scanId: string) {
+        const response = await apiClient.get(`/zap/abort/spider/${scanId}`);
+        return response.data;
+    },
+
     async abortScan(scanId: string) {
         const response = await apiClient.get(`/zap/abort/scan/${scanId}`);
         return response.data;

@@ -103,6 +103,15 @@ async def get_spider_status(scan_id: str) -> dict:
         )
 
 
+async def stop_spider(scan_id: str) -> dict:
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        return await _zap_get(
+            client,
+            f"{settings.ZAP_API_URL}/JSON/spider/action/stop/",
+            {"apikey": settings.ZAP_API_KEY, "scanId": scan_id}
+        )
+
+
 async def start_scan(
     target: str,
     user_id: str,

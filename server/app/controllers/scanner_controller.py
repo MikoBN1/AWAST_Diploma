@@ -65,6 +65,11 @@ async def zap_alert_by_id(alert_id: str):
     return await scanner_service.get_alert_by_id(alert_id)
 
 
+@router.get("/abort/spider/{scan_id}", dependencies=[Depends(get_current_user)])
+async def zap_abort_spider(scan_id: str):
+    return await scanner_service.stop_spider(scan_id)
+
+
 @router.get("/abort/scan/{scan_id}", dependencies=[Depends(get_current_user)])
 async def zap_abort(scan_id: str):
     return await scanner_service.abort_scan(scan_id)
