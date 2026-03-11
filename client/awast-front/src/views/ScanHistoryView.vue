@@ -24,10 +24,11 @@ const totalScans = computed(() => scanHistory.value.length);
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'finished': return 'success';
+    case 'done': return 'success';
     case 'error': return 'error';
     case 'running': return 'info';
     case 'pending': return 'warning';
+    case 'stopped': return 'grey';
     default: return 'grey';
   }
 };

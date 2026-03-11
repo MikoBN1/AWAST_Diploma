@@ -8,6 +8,7 @@ export const useScanStore = defineStore('scan', {
         scanStatus: null as any | null,
         alerts: [] as any[],
         isScanning: false,
+        isStopping: false,
         scanHistory: [] as any[],
         scanResults: null as any | null,
         isLoadingHistory: false,
@@ -52,7 +53,8 @@ export const useScanStore = defineStore('scan', {
         connectToScanSocket(
             scanId: string,
             onComplete?: () => void,
-            onError?: (msg: string) => void
+            onError?: (msg: string) => void,
+            onStopped?: () => void,
         ) {
             if (this.wsConnection) {
                 this.wsConnection.close();
@@ -104,6 +106,16 @@ export const useScanStore = defineStore('scan', {
                             if (onComplete) onComplete();
                             break;
 
+                        case "stopped":
+                            this.isScanning = false;
+                            this.isStopping = false;
+                            if (this.wsConnection) {
+                                this.wsConnection.close();
+                                this.wsConnection = null;
+                            }
+                            if (onStopped) onStopped();
+                            break;
+
                         case "error":
                             this.isScanning = false;
                             if (this.wsConnection) {
@@ -130,6 +142,18 @@ export const useScanStore = defineStore('scan', {
                 console.log("Disconnected from scan monitor.");
                 this.wsConnection = null;
             };
+        },
+
+        async stopScan() {
+            if (!this.activeScanId) return;
+            this.isStopping = true;
+            try {
+                await zapService.abortScan(this.activeScanId);
+            } catch (error) {
+                console.error('Failed to stop scan', error);
+                this.isStopping = false;
+                throw error;
+            }
         },
 
         async checkStatus() {

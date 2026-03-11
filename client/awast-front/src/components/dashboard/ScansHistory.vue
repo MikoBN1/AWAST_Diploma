@@ -74,7 +74,7 @@ const viewAll = () => {
           <td class="font-weight-medium text-body-2">{{scan.target}}</td>
           <td>
              <v-chip
-                :color="scan.status === 'finished' ? 'success' : scan.status === 'error' ? 'error' : 'warning'"
+                :color="scan.status === 'done' ? 'success' : scan.status === 'error' ? 'error' : scan.status === 'stopped' ? 'grey' : 'warning'"
                 size="x-small"
                 class="font-weight-bold text-uppercase"
                 label

@@ -9,12 +9,13 @@ import ScanVulnerabilitiyList from "../components/scanner/ScanVulnerabilitiyList
 
 const scanStore = useScanStore();
 const route = useRoute();
-const { isScanning, scanProgress } = storeToRefs(scanStore);
+const { isScanning, scanProgress, isStopping } = storeToRefs(scanStore);
 
 const model = ref(true);
 const targetUrl = ref('');
 const errorMsg = ref('');
 const hideFalsePositives = ref(false);
+const spiderPollInterval = ref<ReturnType<typeof setInterval> | null>(null);
 
 // Cookies key-value editor
 interface CookieEntry {
@@ -49,13 +50,16 @@ const pollSpiderStatus = (spiderId: string): Promise<void> => {
         scanStore.scanProgress = progress;
         if (progress >= 100) {
           clearInterval(interval);
+          spiderPollInterval.value = null;
           resolve();
         }
       } catch (err) {
         clearInterval(interval);
+        spiderPollInterval.value = null;
         reject(err);
       }
     }, 2000);
+    spiderPollInterval.value = interval;
   });
 };
 
@@ -90,15 +94,18 @@ const startScan = async () => {
     scanStore.connectToScanSocket(
       scanStore.activeScanId,
       () => {
-        // On Complete
         scanPhase.value = '';
         successMsg.value = 'Scan completed successfully!';
       },
       (err) => {
-        // On Error
         errorMsg.value = `Scan error: ${err}`;
         scanPhase.value = '';
-      }
+      },
+      () => {
+        scanPhase.value = '';
+        isStartingScan.value = false;
+        successMsg.value = 'Scan was stopped.';
+      },
     );
   } catch (error: any) {
     isStartingScan.value = false;
@@ -107,7 +114,31 @@ const startScan = async () => {
   }
 };
 
+const stopScan = async () => {
+  try {
+    if (spiderPollInterval.value) {
+      clearInterval(spiderPollInterval.value);
+      spiderPollInterval.value = null;
+    }
+
+    await scanStore.stopScan();
+
+    if (scanPhase.value === 'spider') {
+      scanPhase.value = '';
+      isStartingScan.value = false;
+      scanStore.isScanning = false;
+      scanStore.isStopping = false;
+      successMsg.value = 'Scan was stopped.';
+    }
+  } catch (error: any) {
+    errorMsg.value = error?.response?.data?.detail || 'Failed to stop scan';
+  }
+};
+
 onUnmounted(() => {
+  if (spiderPollInterval.value) {
+    clearInterval(spiderPollInterval.value);
+  }
   if (scanStore.wsConnection) {
     scanStore.wsConnection.close();
   }
@@ -310,8 +341,9 @@ watch(
                 </div>
               </v-expand-transition>
 
-              <!-- Action Button -->
+              <!-- Action Buttons -->
               <v-btn
+                v-if="!isScanning"
                 block
                 size="x-large"
                 color="primary"
@@ -323,6 +355,20 @@ watch(
                 :disabled="isStartingScan"
               >
                 {{ isStartingScan ? 'Starting...' : 'Start Security Scan' }}
+              </v-btn>
+              <v-btn
+                v-if="isScanning"
+                block
+                size="x-large"
+                color="error"
+                variant="elevated"
+                class="text-none font-weight-bold stop-button"
+                prepend-icon="mdi-stop-circle-outline"
+                @click="stopScan"
+                :loading="isStopping"
+                :disabled="isStopping"
+              >
+                {{ isStopping ? 'Stopping...' : 'Stop Scan' }}
               </v-btn>
 
               <!-- Info Footer -->
@@ -535,6 +581,19 @@ watch(
 
 .glow-button:hover {
   box-shadow: 0 12px 32px rgba(102, 126, 234, 0.5);
+  transform: translateY(-2px);
+}
+
+/* Stop Button */
+.stop-button {
+  box-shadow: 0 8px 24px rgba(244, 67, 54, 0.35);
+  border-radius: 12px;
+  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+}
+
+.stop-button:hover {
+  box-shadow: 0 12px 32px rgba(244, 67, 54, 0.45);
   transform: translateY(-2px);
 }
 

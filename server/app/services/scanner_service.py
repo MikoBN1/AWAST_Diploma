@@ -1,10 +1,12 @@
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Set
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
+
+_cancelled_scans: Set[str] = set()
 
 import httpx
 from fastapi import HTTPException
@@ -263,12 +265,49 @@ async def get_alert_by_id(alert_id: str) -> dict:
 
 
 async def abort_scan(scan_id: str) -> dict:
+    from core.database import async_session
+
+    async with async_session() as db:
+        database_service = AsyncDatabaseService(lambda: db)
+        scan = await database_service.get(Scan, scan_id=scan_id)
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+
+        zap_index = str(scan.zap_index)
+
+    _cancelled_scans.add(str(scan_id))
+
     async with httpx.AsyncClient(timeout=60.0) as client:
-        return await _zap_get(
-            client,
-            f"{settings.ZAP_API_URL}/JSON/ascan/action/stop/",
-            {"apikey": settings.ZAP_API_KEY, "scanId": scan_id}
+        try:
+            await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/ascan/action/stop/",
+                {"apikey": settings.ZAP_API_KEY, "scanId": zap_index},
+            )
+        except Exception as e:
+            logger.warning(f"ZAP active scan stop failed for {scan_id}: {e}")
+
+        try:
+            await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/spider/action/stop/",
+                {"apikey": settings.ZAP_API_KEY, "scanId": zap_index},
+            )
+        except Exception:
+            pass
+
+    async with async_session() as db:
+        database_service = AsyncDatabaseService(lambda: db)
+        await database_service.update(
+            Scan, {"scan_id": scan_id}, {"status": "stopped"}
         )
+
+    await manager.broadcast(str(scan_id), {
+        "type": "stopped",
+        "message": "Scan was stopped by user",
+    })
+    logger.info(f"Scan {scan_id} stopped by user")
+    return {"status": "stopped", "scan_id": str(scan_id)}
 
 
 async def run_scan(scan_id: int, target_url: str, scan_index: str):
@@ -283,7 +322,15 @@ async def _run_scan_internal(scan_id: int, target_url: str, scan_index: str, db:
         seen_alert_ids = set()
         async with httpx.AsyncClient(timeout=60.0) as client:
             max_retries = 60
+            cancelled = False
             for _ in range(max_retries):
+                scan_id_str = str(scan_id)
+                if scan_id_str in _cancelled_scans:
+                    _cancelled_scans.discard(scan_id_str)
+                    cancelled = True
+                    logger.info(f"Scan {scan_id} cancelled by user during polling")
+                    break
+
                 status_resp = await client.get(
                     f"{settings.ZAP_API_URL}/JSON/ascan/view/status/",
                     params={"apikey": settings.ZAP_API_KEY, "scanId": scan_index}
@@ -328,15 +375,19 @@ async def _run_scan_internal(scan_id: int, target_url: str, scan_index: str, db:
                     break
                 await asyncio.sleep(5)
             else:
-                await database_service.update(
-                    Scan,
-                    {"scan_id": scan_id},
-                    {"status": "error"}
-                )
-                await manager.broadcast(str(scan_id), {
-                    "type": "error",
-                    "message": "Scan timeout"
-                })
+                if not cancelled:
+                    await database_service.update(
+                        Scan,
+                        {"scan_id": scan_id},
+                        {"status": "error"}
+                    )
+                    await manager.broadcast(str(scan_id), {
+                        "type": "error",
+                        "message": "Scan timeout"
+                    })
+                    return
+
+            if cancelled:
                 return
 
             resp = await client.get(
