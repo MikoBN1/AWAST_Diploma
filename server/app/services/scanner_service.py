@@ -18,7 +18,6 @@ from models.vulnerability_model import Vulnerability
 from schemas.report_schema import Vulnerability as VulnerabilitySchema
 from services.database_service import AsyncDatabaseService
 from services.websocket_service import manager
-from services.ai_checker_service import AICheckerService
 
 # ZAP Confidence mapping: 0=Low, 1=Medium, 2=High
 CONFIDENCE_MAP = {
@@ -420,84 +419,39 @@ async def _run_scan_internal(scan_id: int, target_url: str, scan_index: str, db:
             vulnerabilities_raw = filtered_vulnerabilities
             alerts_data = []
 
-            ai_checker = AICheckerService()
-            batch_size = 5
-            
-            # Step 1: Pre-fetch message details for all alerts
-            enriched_findings = []
-            for idx, vuln_raw in enumerate(vulnerabilities_raw):
-                message_id = vuln_raw.get("messageId")
-                parameter = vuln_raw.get("param")
-                payload = vuln_raw.get("attack")
-                
-                request_text = ""
-                response_text = ""
-                
-                if message_id:
-                    try:
-                        msg_resp = await client.get(
-                            f"{settings.ZAP_API_URL}/JSON/core/view/message/",
-                            params={"apikey": settings.ZAP_API_KEY, "id": message_id}
-                        )
-                        msg_data = msg_resp.json().get("message", {})
-                        request_text = msg_data.get("requestHeader", "") + "\n\n" + msg_data.get("requestBody", "")
-                        response_text = msg_data.get("responseHeader", "") + "\n\n" + msg_data.get("responseBody", "")
-                    except Exception as e:
-                        logger.error(f"Failed to fetch ZAP message ID {message_id}: {e}")
+            for vuln_raw in vulnerabilities_raw:
+                try:
+                    message_id = vuln_raw.get("messageId")
+                    parameter = vuln_raw.get("param")
+                    payload = vuln_raw.get("attack")
 
-                enriched_findings.append({
-                    "id": str(idx),
-                    "vuln_raw": vuln_raw,
-                    "vuln_type": vuln_raw.get("alert", "Unknown"),
-                    "url": vuln_raw.get("url", ""),
-                    "parameter": parameter,
-                    "payload": payload,
-                    "request_text": request_text,
-                    "response_text": response_text
-                })
+                    request_text = ""
+                    response_text = ""
 
-            # Step 2: Process in batches
-            for i in range(0, len(enriched_findings), batch_size):
-                batch = enriched_findings[i : i + batch_size]
-                
-                # Filter out fields Gemini doesn't need for the prompt but keep them for mapping
-                batch_for_ai = [
-                    {k: v for k, v in item.items() if k != "vuln_raw"}
-                    for item in batch
-                ]
-                
-                ai_results = await ai_checker.verify_vulnerabilities_batch(batch_for_ai)
-                
-                # Map results back
-                results_map = {res.id: res for res in ai_results}
-                
-                for item in batch:
-                    try:
-                        vuln_raw = item["vuln_raw"]
-                        vuln = VulnerabilitySchema(**vuln_raw)
-                        vuln_data = vuln.model_dump()
-                        vuln_data["url"] = str(vuln_data["url"])
-                        
-                        ai_res = results_map.get(item["id"])
-                        
-                        vuln_data["parameter"] = item["parameter"]
-                        vuln_data["payload"] = item["payload"]
-                        vuln_data["request"] = item["request_text"]
-                        vuln_data["response"] = item["response_text"]
-                        
-                        if ai_res:
-                            vuln_data["ai_status"] = "False Positive" if ai_res.is_false_positive else "Verified"
-                            vuln_data["ai_reasoning"] = ai_res.reasoning
-                            vuln_data["confidence_score"] = ai_res.confidence_score
-                        else:
-                            vuln_data["ai_status"] = "Verified"
-                            vuln_data["ai_reasoning"] = "AI assessment unavailable for this batch."
-                            vuln_data["confidence_score"] = 0
+                    if message_id:
+                        try:
+                            msg_resp = await client.get(
+                                f"{settings.ZAP_API_URL}/JSON/core/view/message/",
+                                params={"apikey": settings.ZAP_API_KEY, "id": message_id}
+                            )
+                            msg_data = msg_resp.json().get("message", {})
+                            request_text = msg_data.get("requestHeader", "") + "\n\n" + msg_data.get("requestBody", "")
+                            response_text = msg_data.get("responseHeader", "") + "\n\n" + msg_data.get("responseBody", "")
+                        except Exception as e:
+                            logger.error(f"Failed to fetch ZAP message ID {message_id}: {e}")
 
-                        await database_service.create(Vulnerability(**vuln_data, scan_id=scan_id))
-                        alerts_data.append(vuln_data)
-                    except Exception as ex:
-                        logger.error(f"Error processing vulnerability row: {ex}", exc_info=True)
+                    vuln = VulnerabilitySchema(**vuln_raw)
+                    vuln_data = vuln.model_dump()
+                    vuln_data["url"] = str(vuln_data["url"])
+                    vuln_data["parameter"] = parameter
+                    vuln_data["payload"] = payload
+                    vuln_data["request"] = request_text
+                    vuln_data["response"] = response_text
+
+                    await database_service.create(Vulnerability(**vuln_data, scan_id=scan_id))
+                    alerts_data.append(vuln_data)
+                except Exception as ex:
+                    logger.error(f"Error processing vulnerability row: {ex}", exc_info=True)
 
             await database_service.update(
                 Scan,

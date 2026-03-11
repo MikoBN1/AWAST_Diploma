@@ -15,7 +15,6 @@ const { isScanning, scanProgress, isStopping } = storeToRefs(scanStore);
 const model = ref(true);
 const targetUrl = ref('');
 const errorMsg = ref('');
-const hideFalsePositives = ref(false);
 const spiderPollInterval = ref<ReturnType<typeof setInterval> | null>(null);
 
 // Cookies key-value editor
@@ -399,25 +398,9 @@ watch(
         </v-col>
       </v-row>
 
-      <v-row class="mb-4 d-flex align-center justify-end pr-4">
-        <v-switch
-          v-model="hideFalsePositives"
-          color="success"
-          inset
-          hide-details
-          class="flex-grow-0"
-        >
-          <template v-slot:label>
-            <span class="text-body-2 font-weight-medium" :class="hideFalsePositives ? 'text-success' : 'text-grey-darken-1'">
-              Hide AI-Flagged False Positives
-            </span>
-          </template>
-        </v-switch>
-      </v-row>
-
       <!-- Vulnerabilities List -->
       <v-row class="mb-8">
-        <ScanVulnerabilitiyList :hideFalsePositives="hideFalsePositives" />
+        <ScanVulnerabilitiyList />
       </v-row>
     </v-container>
   </div>

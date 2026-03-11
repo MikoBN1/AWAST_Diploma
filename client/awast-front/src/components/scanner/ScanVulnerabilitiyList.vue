@@ -4,10 +4,6 @@ import { useScanStore } from '@/stores/scanStore';
 import { storeToRefs } from 'pinia';
 import ExploitDialog from '../dialogs/ExploitDialog.vue';
 
-const props = defineProps<{
-  hideFalsePositives: boolean
-}>();
-
 const scanStore = useScanStore();
 const { alerts } = storeToRefs(scanStore);
 
@@ -20,12 +16,10 @@ interface Vulnerability {
   solution: string
   method: string
   url: string
-  ai_status?: string
-  ai_reasoning?: string
-  confidence_score?: number
+  parameter: string
+  payload: string
 }
 
-// Map ZAP risks to severity types used in the component
 const mapRiskToSeverity = (risk?: string): 'critical' | 'high' | 'medium' | 'low' => {
   if (!risk) return 'low';
   switch(risk.toLowerCase()) {
@@ -37,9 +31,8 @@ const mapRiskToSeverity = (risk?: string): 'critical' | 'high' | 'medium' | 'low
   }
 };
 
-// Computed property to map raw WS alerts to Vulnerability objects
 const vulnerabilities = computed<Vulnerability[]>(() => {
-  const mappedAlerts = alerts.value.map((alert: any, index: number) => ({
+  return alerts.value.map((alert: any, index: number) => ({
     id: alert.id || alert.cweid || `vuln-${index}`,
     severity: mapRiskToSeverity(alert.risk),
     cveId: alert.cweid ? `CWE-${alert.cweid}` : (alert.cve || 'N/A'),
@@ -48,30 +41,25 @@ const vulnerabilities = computed<Vulnerability[]>(() => {
     solution: alert.solution || 'Solution not available in real-time stream. Full report required.',
     method: alert.method || 'GET',
     url: alert.url || 'Unknown URL',
-    ai_status: alert.ai_status,
-    ai_reasoning: alert.ai_reasoning,
-    confidence_score: alert.confidence_score
+    parameter: alert.parameter || alert.param || '',
+    payload: alert.payload || alert.attack || '',
   }));
-
-  if (props.hideFalsePositives) {
-    return mappedAlerts.filter(a => a.ai_status !== 'False Positive');
-  }
-  return mappedAlerts;
 });
 
-// Dialog State
 const exploitDialogOpen = ref(false);
 const selectedExploit = ref({
     url: '',
     method: '',
-    vulnType: ''
+    vulnType: '',
+    param: ''
 });
 
 const openExploitDialog = (vuln: Vulnerability) => {
     selectedExploit.value = {
         url: vuln.url,
         method: vuln.method,
-        vulnType: vuln.title
+        vulnType: vuln.title,
+        param: vuln.parameter
     };
     exploitDialogOpen.value = true;
 };
@@ -159,13 +147,6 @@ const isExploitAllowed = (title: string) => {
         class="vuln-card"
         :class="{ 'expanded': expandedItems.has(vuln.id) }"
       >
-        <!-- AI Badge (if analyzed) -->
-        <div v-if="vuln.ai_status" class="ai-badge" :class="vuln.ai_status === 'Verified' ? 'ai-verified' : 'ai-false-positive'">
-          <v-icon size="16" class="mr-1">
-            {{ vuln.ai_status === 'Verified' ? 'mdi-robot-outline' : 'mdi-robot-dead-outline' }}
-          </v-icon>
-          {{ vuln.ai_status === 'Verified' ? 'AI Verified 🤖' : 'Likely False Positive 🤖' }}
-        </div>
         <!-- Severity Badge Overlay -->
         <div 
           class="severity-badge"
@@ -209,19 +190,6 @@ const isExploitAllowed = (title: string) => {
               <p class="solution-text">{{ vuln.solution }}</p>
           </div>
 
-          <!-- Expandable AI Analysis Section -->
-          <div v-if="expandedItems.has(vuln.id) && vuln.ai_reasoning" class="ai-analysis-section mt-4 relative">
-              <div class="solution-header d-flex justify-space-between align-center">
-                <div class="d-flex align-center">
-                  <v-icon size="20" color="#8b5cf6" class="mr-2">mdi-brain</v-icon>
-                  <span class="ai-label font-weight-bold" style="color: #8b5cf6">AI Analysis (Confidence: {{ vuln.confidence_score }}%)</span>
-                </div>
-              </div>
-              <div class="ai-reasoning-content mt-3 p-4 rounded bg-white shadow-inner">
-                <p class="text-body-2 text-slate-700 m-0" style="line-height: 1.6;">{{ vuln.ai_reasoning }}</p>
-              </div>
-          </div>
-
           <!-- Footer Actions -->
           <div class="vuln-footer">
             <div class="method-badge">
@@ -241,6 +209,17 @@ const isExploitAllowed = (title: string) => {
                 </v-icon>
                 {{ expandedItems.has(vuln.id) ? 'Less' : 'More' }} Details
               </v-btn>
+              <v-btn
+                v-if="isExploitAllowed(vuln.title)"
+                size="small"
+                variant="elevated"
+                class="exploit-btn"
+                :class="`exploit-btn-${vuln.severity}`"
+                @click="openExploitDialog(vuln)"
+              >
+                <v-icon size="18" class="mr-1">mdi-flash</v-icon>
+                AI Verify
+              </v-btn>
             </div>
           </div>
         </div>
@@ -252,6 +231,7 @@ const isExploitAllowed = (title: string) => {
       :initial-url="selectedExploit.url"
       :initial-method="selectedExploit.method"
       :initial-vuln-type="selectedExploit.vulnType"
+      :initial-param="selectedExploit.param"
     />
   </div>
 </template>
@@ -630,61 +610,6 @@ const isExploitAllowed = (title: string) => {
     width: 100%;
     justify-content: space-between;
   }
-}
-
-/* AI Specific Styles */
-.ai-badge {
-  position: absolute;
-  top: 65px;
-  right: 20px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  z-index: 2;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05);
-}
-
-.ai-verified {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-}
-
-.ai-false-positive {
-  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
-  color: white;
-}
-
-.ai-analysis-section {
-  padding: 20px;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(168, 85, 247, 0.08) 100%);
-  border-radius: 12px;
-  border: 1px solid rgba(139, 92, 246, 0.2);
-  position: relative;
-  overflow: hidden;
-}
-
-.ai-analysis-section::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 4px;
-  height: 100%;
-  background: linear-gradient(to bottom, #8b5cf6, #a855f7);
-}
-
-.ai-reasoning-content {
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(139, 92, 246, 0.1);
-  padding: 16px;
-  border-radius: 8px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
 }
 
 .hover-scale {
