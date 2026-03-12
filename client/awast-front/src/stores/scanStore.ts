@@ -224,5 +224,13 @@ export const useScanStore = defineStore('scan', {
                 this.isLoadingResults = false;
             }
         },
+        async deleteScan(scanId: string) {
+            await userService.deleteScan(scanId);
+            this.scanHistory = this.scanHistory.filter((s: any) => s.scan_id !== scanId);
+        },
+        async clearAllScans() {
+            await userService.clearAllScans();
+            this.scanHistory = [];
+        },
     },
 });

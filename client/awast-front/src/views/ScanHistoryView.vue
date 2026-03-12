@@ -9,6 +9,15 @@ const router = useRouter();
 const scanStore = useScanStore();
 const { scanHistory, isLoadingHistory } = storeToRefs(scanStore);
 
+const deleteDialog = ref(false);
+const scanToDelete = ref<string | null>(null);
+const isDeleting = ref(false);
+const deleteError = ref<string | null>(null);
+
+const clearAllDialog = ref(false);
+const isClearing = ref(false);
+const clearError = ref<string | null>(null);
+
 const headers = [
   { title: 'Status', key: 'status', sortable: true },
   { title: 'Target URL', key: 'target', sortable: true },
@@ -40,6 +49,46 @@ const viewDetails = (scanId: string) => {
 const initiateNewScan = () => {
   router.push('/scanner');
 };
+
+const confirmDelete = (scanId: string) => {
+  scanToDelete.value = scanId;
+  deleteError.value = null;
+  deleteDialog.value = true;
+};
+
+const cancelDelete = () => {
+  deleteDialog.value = false;
+  scanToDelete.value = null;
+  deleteError.value = null;
+};
+
+const executeDelete = async () => {
+  if (!scanToDelete.value) return;
+  isDeleting.value = true;
+  deleteError.value = null;
+  try {
+    await scanStore.deleteScan(scanToDelete.value);
+    deleteDialog.value = false;
+    scanToDelete.value = null;
+  } catch {
+    deleteError.value = 'Failed to delete scan. Please try again.';
+  } finally {
+    isDeleting.value = false;
+  }
+};
+
+const executeClearAll = async () => {
+  isClearing.value = true;
+  clearError.value = null;
+  try {
+    await scanStore.clearAllScans();
+    clearAllDialog.value = false;
+  } catch {
+    clearError.value = 'Failed to clear history. Please try again.';
+  } finally {
+    isClearing.value = false;
+  }
+};
 </script>
 
 <template>
@@ -49,16 +98,29 @@ const initiateNewScan = () => {
         <h1 class="text-h4 font-weight-bold text-slate-800 mb-2">Scan History</h1>
         <p class="text-subtitle-1 text-grey-darken-1">Monitor and manage your security assessment logs.</p>
       </div>
-      <v-btn
-        color="primary"
-        prepend-icon="mdi-plus"
-        size="large"
-        variant="elevated"
-        class="text-none glow-button"
-        @click="initiateNewScan"
-      >
-        New Scan
-      </v-btn>
+      <div class="d-flex ga-3">
+        <v-btn
+          color="error"
+          prepend-icon="mdi-delete-sweep-outline"
+          size="large"
+          variant="tonal"
+          class="text-none"
+          :disabled="totalScans === 0"
+          @click="clearAllDialog = true"
+        >
+          Clear All
+        </v-btn>
+        <v-btn
+          color="primary"
+          prepend-icon="mdi-plus"
+          size="large"
+          variant="elevated"
+          class="text-none glow-button"
+          @click="initiateNewScan"
+        >
+          New Scan
+        </v-btn>
+      </div>
     </div>
 
     <!-- Stats Cards Row -->
@@ -124,6 +186,7 @@ const initiateNewScan = () => {
         <!-- Actions Column -->
         <template v-slot:item.actions="{ item }">
           <v-btn icon="mdi-file-document-outline" variant="text" size="small" color="primary" @click="viewDetails(item.scan_id)"></v-btn>
+          <v-btn icon="mdi-trash-can-outline" variant="text" size="small" color="error" @click="confirmDelete(item.scan_id)"></v-btn>
         </template>
 
         <!-- Empty State -->
@@ -136,6 +199,52 @@ const initiateNewScan = () => {
       </v-data-table>
     </v-card>
   </div>
+
+  <!-- Delete Confirmation Dialog -->
+  <v-dialog v-model="deleteDialog" max-width="420" persistent>
+    <v-card class="rounded-lg" elevation="4">
+      <v-card-title class="d-flex align-center pt-5 px-6">
+        <v-icon icon="mdi-alert-circle-outline" color="error" class="mr-2"></v-icon>
+        Delete Scan
+      </v-card-title>
+      <v-card-text class="px-6 pb-2">
+        <p class="text-body-1 text-grey-darken-2">
+          Are you sure you want to delete this scan? All associated vulnerabilities will be permanently removed.
+        </p>
+        <v-alert v-if="deleteError" type="error" variant="tonal" density="compact" class="mt-3">
+          {{ deleteError }}
+        </v-alert>
+      </v-card-text>
+      <v-card-actions class="px-6 pb-5 pt-2">
+        <v-spacer></v-spacer>
+        <v-btn variant="text" color="grey" class="text-none" @click="cancelDelete" :disabled="isDeleting">Cancel</v-btn>
+        <v-btn variant="elevated" color="error" class="text-none" :loading="isDeleting" @click="executeDelete">Delete</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- Clear All Confirmation Dialog -->
+  <v-dialog v-model="clearAllDialog" max-width="440" persistent>
+    <v-card class="rounded-lg" elevation="4">
+      <v-card-title class="d-flex align-center pt-5 px-6">
+        <v-icon icon="mdi-delete-sweep-outline" color="error" class="mr-2"></v-icon>
+        Clear All History
+      </v-card-title>
+      <v-card-text class="px-6 pb-2">
+        <p class="text-body-1 text-grey-darken-2">
+          This will permanently delete <strong>all {{ totalScans }} scan(s)</strong> and their associated vulnerabilities. This action cannot be undone.
+        </p>
+        <v-alert v-if="clearError" type="error" variant="tonal" density="compact" class="mt-3">
+          {{ clearError }}
+        </v-alert>
+      </v-card-text>
+      <v-card-actions class="px-6 pb-5 pt-2">
+        <v-spacer></v-spacer>
+        <v-btn variant="text" color="grey" class="text-none" @click="clearAllDialog = false" :disabled="isClearing">Cancel</v-btn>
+        <v-btn variant="elevated" color="error" class="text-none" :loading="isClearing" @click="executeClearAll">Clear All</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <style scoped>
