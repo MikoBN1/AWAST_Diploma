@@ -34,6 +34,7 @@ const authStore = useAuthStore();
       <v-list-item prepend-icon="mdi-view-dashboard" title="Dashboard" value="dashboard" to="/dashboard" active-color="primary" rounded="lg"></v-list-item>
       <v-list-item prepend-icon="mdi-shield-search" title="Scanner" value="scanner" to="/scanner" active-color="primary" rounded="lg"></v-list-item>
       <v-list-item prepend-icon="mdi-history" title="Scan History" value="history" to="/scanner/history" active-color="primary" rounded="lg"></v-list-item>
+      <v-list-item prepend-icon="mdi-link-variant" title="Attack Chains" value="chains" to="/chains" active-color="primary" rounded="lg"></v-list-item>
       <v-list-item prepend-icon="mdi-api" title="Swagger AI" value="swagger" to="/swagger-analysis" active-color="primary" rounded="lg"></v-list-item>
       
       <template v-if="authStore.isAdmin">

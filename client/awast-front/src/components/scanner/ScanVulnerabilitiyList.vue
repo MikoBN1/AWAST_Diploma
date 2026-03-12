@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useScanStore } from '@/stores/scanStore';
 import { storeToRefs } from 'pinia';
-import ExploitDialog from '../dialogs/ExploitDialog.vue';
 
+const router = useRouter();
 const scanStore = useScanStore();
 const { alerts } = storeToRefs(scanStore);
 
@@ -46,24 +47,6 @@ const vulnerabilities = computed<Vulnerability[]>(() => {
   }));
 });
 
-const exploitDialogOpen = ref(false);
-const selectedExploit = ref({
-    url: '',
-    method: '',
-    vulnType: '',
-    param: ''
-});
-
-const openExploitDialog = (vuln: Vulnerability) => {
-    selectedExploit.value = {
-        url: vuln.url,
-        method: vuln.method,
-        vulnType: vuln.title,
-        param: vuln.parameter
-    };
-    exploitDialogOpen.value = true;
-};
-
 const expandedItems = ref<Set<string>>(new Set())
 
 const toggleExpand = (id: string) => {
@@ -104,23 +87,8 @@ const getSeverityConfig = (severity: string) => {
   return configs[severity as keyof typeof configs] || configs.low
 }
 
-// List of currently supported vulnerabilities for the exploitation engine
-const allowedExploits = [
-  'SQL Injection',
-  'Cross Site Scripting (Reflected)',
-  'Cross Site Scripting (Persistent)',
-  'Server Side Template Injection',
-  'Command Injection',
-  'Path Traversal',
-  'XML External Entity'
-];
-
-const isExploitAllowed = (title: string) => {
-  const lowerTitle = title.toLowerCase();
-  if (lowerTitle.includes('sql') || lowerTitle.includes('xss') || lowerTitle.includes('cross site scripting')) {
-    return true;
-  }
-  return allowedExploits.some(allowed => lowerTitle.includes(allowed.toLowerCase()));
+const goToChainAnalysis = () => {
+  router.push('/chains');
 };
 </script>
 
@@ -134,9 +102,21 @@ const isExploitAllowed = (title: string) => {
           <p class="section-subtitle">Latest security issues detected in your codebase</p>
         </div>
       </div>
-      <div class="stats-badge">
-        <span class="stats-number">{{ vulnerabilities.length }}</span>
-        <span class="stats-label">Issues Found</span>
+      <div class="header-right">
+        <v-btn
+          v-if="vulnerabilities.length > 0"
+          color="deep-purple"
+          variant="elevated"
+          class="chain-btn text-none font-weight-bold mr-4"
+          prepend-icon="mdi-link-variant"
+          @click="goToChainAnalysis"
+        >
+          Discover Attack Chains
+        </v-btn>
+        <div class="stats-badge">
+          <span class="stats-number">{{ vulnerabilities.length }}</span>
+          <span class="stats-label">Issues Found</span>
+        </div>
       </div>
     </div>
 
@@ -209,30 +189,12 @@ const isExploitAllowed = (title: string) => {
                 </v-icon>
                 {{ expandedItems.has(vuln.id) ? 'Less' : 'More' }} Details
               </v-btn>
-              <v-btn
-                v-if="isExploitAllowed(vuln.title)"
-                size="small"
-                variant="elevated"
-                class="exploit-btn"
-                :class="`exploit-btn-${vuln.severity}`"
-                @click="openExploitDialog(vuln)"
-              >
-                <v-icon size="18" class="mr-1">mdi-flash</v-icon>
-                AI Verify
-              </v-btn>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <ExploitDialog
-      v-model="exploitDialogOpen"
-      :initial-url="selectedExploit.url"
-      :initial-method="selectedExploit.method"
-      :initial-vuln-type="selectedExploit.vulnType"
-      :initial-param="selectedExploit.param"
-    />
   </div>
 </template>
 
@@ -545,37 +507,21 @@ const isExploitAllowed = (title: string) => {
   background: rgba(99, 102, 241, 0.1) !important;
 }
 
-.exploit-btn {
-  font-weight: 600;
-  text-transform: none;
-  letter-spacing: 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.header-right {
+  display: flex;
+  align-items: center;
 }
 
-.exploit-btn:hover {
+.chain-btn {
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35);
+  border-radius: 12px;
+  letter-spacing: 0.3px;
+  transition: all 0.3s ease;
+}
+
+.chain-btn:hover {
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.45);
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-}
-
-.exploit-btn-critical {
-  background: linear-gradient(135deg, #ff0844 0%, #ff6b9d 100%);
-  color: #fff;
-}
-
-.exploit-btn-high {
-  background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
-  color: #fff;
-}
-
-.exploit-btn-medium {
-  background: linear-gradient(135deg, #ffd93d 0%, #f6c244 100%);
-  color: #2c3e50;
-}
-
-.exploit-btn-low {
-  background: linear-gradient(135deg, #6bcf7f 0%, #4facfe 100%);
-  color: #fff;
 }
 
 /* Responsive Design */

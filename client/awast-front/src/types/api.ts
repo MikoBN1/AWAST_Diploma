@@ -32,34 +32,40 @@ export interface RequestBody {
   cookies?: Record<string, string>;
 }
 
-export interface ExploiterRequestBody {
-  target: string;
-  params: string;
+export interface ChainStep {
+  vuln_id: string;
   vuln_type: string;
-  cookies?: Record<string, string>;
-  method: string;
-  ws_id?: string;
-}
-
-export interface ExploiterConfirmedResponse {
-  status: 'confirmed';
-  vuln_type: string;
-  target: string;
+  vuln_name: string;
+  severity: string;
+  url: string;
   parameter: string;
-  working_payload: string;
-  tried_payloads: string[];
-  proof: string;
-  curl: string;
-  message: string;
+  description: string;
 }
 
-export interface ExploiterPotentialResponse {
-  status: 'potential';
-  message: string;
-  tried_payloads: string[];
+export interface AttackChain {
+  chain_id: string;
+  name: string;
+  description: string;
+  steps: ChainStep[];
+  composite_score: number;
+  max_impact: string;
+  affected_endpoints: string[];
+  preconditions: string;
 }
 
-export type ExploiterResponse = ExploiterConfirmedResponse | ExploiterPotentialResponse;
+export interface ChainAnalysisSummary {
+  by_impact: Record<string, number>;
+  vuln_type_distribution: Record<string, number>;
+  most_chained_endpoints: Array<{ url: string; chain_count: number }>;
+  highest_score: number;
+}
+
+export interface ChainAnalysisResult {
+  total_vulnerabilities: number;
+  total_chains_discovered: number;
+  chains: AttackChain[];
+  summary: ChainAnalysisSummary;
+}
 
 export interface ReportRequest {
   scan_id: string;

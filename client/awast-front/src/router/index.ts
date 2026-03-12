@@ -6,6 +6,7 @@ import ScannerView from "../views/ScannerView.vue";
 import SwaggerAnalysisView from "../views/SwaggerAnalysisView.vue";
 
 import ScanHistoryView from "../views/ScanHistoryView.vue";
+import AttackChainView from "../views/AttackChainView.vue";
 import ProfileView from "../views/ProfileView.vue";
 
 const router = createRouter({
@@ -45,6 +46,12 @@ const router = createRouter({
             path: '/scanner/:id',
             name: 'scan_details',
             component: ScannerView,
+            meta: { hideHeader: false }
+        },
+        {
+            path: '/chains',
+            name: 'chains',
+            component: AttackChainView,
             meta: { hideHeader: false }
         },
         {
