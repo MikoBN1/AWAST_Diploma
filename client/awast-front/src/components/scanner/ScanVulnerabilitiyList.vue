@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useScanStore } from '@/stores/scanStore';
 import { storeToRefs } from 'pinia';
+import ExploitDialog from '../dialogs/ExploitDialog.vue';
 
 const router = useRouter();
 const scanStore = useScanStore();
@@ -46,6 +47,57 @@ const vulnerabilities = computed<Vulnerability[]>(() => {
     payload: alert.payload || alert.attack || '',
   }));
 });
+
+// AI Verify dialog state
+const exploitDialogOpen = ref(false);
+const selectedExploit = ref({ url: '', method: '', vulnType: '', param: '' });
+
+const openExploitDialog = (vuln: Vulnerability) => {
+  selectedExploit.value = {
+    url: vuln.url,
+    method: vuln.method,
+    vulnType: vuln.title,
+    param: vuln.parameter,
+  };
+  exploitDialogOpen.value = true;
+};
+
+// Vulnerability types the AI exploiter can meaningfully test
+const allowedExploits = new Set([
+  'Cross Site Scripting (Reflected)',
+  'Cross Site Scripting (Persistent)',
+  'Cross Site Scripting (DOM Based)',
+  'Cross Site Scripting',
+  'SQL Injection',
+  'SQL Injection - MySQL',
+  'SQL Injection - PostgreSQL',
+  'SQL Injection - SQLite',
+  'SQL Injection - Oracle',
+  'SQL Injection - MsSQL',
+  'SQL Injection - Hypersonic SQL',
+  'Remote OS Command Injection',
+  'Path Traversal',
+  'Server Side Template Injection',
+  'External Redirect',
+  'Open Redirect',
+  'Prompt Injection',
+]);
+
+const isExploitAllowed = (title: string): boolean => {
+  if (allowedExploits.has(title)) return true;
+  const lower = title.toLowerCase();
+  return (
+    lower.includes('cross site scripting') ||
+    lower.includes(' xss') ||
+    (lower.includes('sql') && lower.includes('inject')) ||
+    lower.includes('command inject') ||
+    lower.includes('path traversal') ||
+    lower.includes('template inject') ||
+    lower.includes('open redirect') ||
+    lower.includes('external redirect') ||
+    lower.includes('prompt inject')
+  );
+};
 
 const expandedItems = ref<Set<string>>(new Set())
 
@@ -189,12 +241,30 @@ const goToChainAnalysis = () => {
                 </v-icon>
                 {{ expandedItems.has(vuln.id) ? 'Less' : 'More' }} Details
               </v-btn>
+              <v-btn
+                v-if="isExploitAllowed(vuln.title)"
+                size="small"
+                variant="elevated"
+                class="exploit-btn"
+                :class="`exploit-btn-${vuln.severity}`"
+                @click="openExploitDialog(vuln)"
+              >
+                <v-icon size="16" class="mr-1">mdi-flash</v-icon>
+                AI Verify
+              </v-btn>
             </div>
           </div>
         </div>
       </div>
     </div>
 
+    <ExploitDialog
+      v-model="exploitDialogOpen"
+      :initial-url="selectedExploit.url"
+      :initial-method="selectedExploit.method"
+      :initial-vuln-type="selectedExploit.vulnType"
+      :initial-param="selectedExploit.param"
+    />
   </div>
 </template>
 
@@ -505,6 +575,40 @@ const goToChainAnalysis = () => {
 
 .details-btn:hover {
   background: rgba(99, 102, 241, 0.1) !important;
+}
+
+.exploit-btn {
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.exploit-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.exploit-btn-critical {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%) !important;
+  color: #fff !important;
+}
+
+.exploit-btn-high {
+  background: linear-gradient(135deg, #6d28d9 0%, #5b21b6 100%) !important;
+  color: #fff !important;
+}
+
+.exploit-btn-medium {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
+  color: #fff !important;
+}
+
+.exploit-btn-low {
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%) !important;
+  color: #fff !important;
 }
 
 .header-right {

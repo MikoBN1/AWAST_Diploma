@@ -67,6 +67,36 @@ export interface ChainAnalysisResult {
   summary: ChainAnalysisSummary;
 }
 
+export interface ExploiterRequestBody {
+  target: string;
+  params: string;
+  vuln_type: string;
+  cookies?: Record<string, string>;
+  method: string;
+  ws_id?: string;
+  previous_payloads?: string[];
+}
+
+export interface ExploiterConfirmedResponse {
+  status: 'confirmed';
+  vuln_type: string;
+  target: string;
+  parameter: string;
+  working_payload: string;
+  tried_payloads: string[];
+  proof: string;
+  curl: string;
+  message: string;
+}
+
+export interface ExploiterPotentialResponse {
+  status: 'potential';
+  message: string;
+  tried_payloads: string[];
+}
+
+export type ExploiterResponse = ExploiterConfirmedResponse | ExploiterPotentialResponse;
+
 export interface ReportRequest {
   scan_id: string;
 }

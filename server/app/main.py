@@ -9,6 +9,7 @@ from controllers import (
     swagger_controller,
     scanner_controller,
     chain_controller,
+    exploiter_controller,
     report_controller,
 )
 from core.database import init_models
@@ -33,6 +34,7 @@ api_router = APIRouter(prefix="/api/v1")
 
 api_router.include_router(scanner_controller.router)
 api_router.include_router(chain_controller.router)
+api_router.include_router(exploiter_controller.router)
 api_router.include_router(report_controller.router)
 api_router.include_router(user_controller.router)
 api_router.include_router(auth_controller.router)
