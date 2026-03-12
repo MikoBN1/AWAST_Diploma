@@ -42,3 +42,11 @@ async def get_my_scan_history(current_user = Depends(get_current_user)):
 @router.get("/my/scan/{scan_id}/results")
 async def get_my_scan_history(scan_id: str, current_user = Depends(get_current_user)):
     return await users_service.get_my_scan_results(current_user.user_id, scan_id)
+
+@router.delete("/my/scan/{scan_id}")
+async def delete_my_scan(scan_id: str, current_user = Depends(get_current_user)):
+    return await users_service.delete_my_scan(current_user.user_id, scan_id)
+
+@router.delete("/my/scans/all")
+async def clear_all_my_scans(current_user = Depends(get_current_user)):
+    return await users_service.clear_all_my_scans(current_user.user_id)

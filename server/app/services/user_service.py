@@ -85,3 +85,24 @@ async def get_my_scan_results(user_id:str, scan_id: str):
         return []
 
     return scan_results
+
+async def delete_my_scan(user_id: str, scan_id: str):
+    scan = await database_service.get(Scan, user_id=user_id, scan_id=scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    vulnerabilities = await database_service.get_all(Vulnerability, scan_id=scan_id)
+    for vuln in vulnerabilities:
+        await database_service.delete(Vulnerability, id=vuln.id)
+
+    await database_service.delete(Scan, scan_id=scan_id)
+    return {"message": "Scan deleted successfully"}
+
+async def clear_all_my_scans(user_id: str):
+    scans = await database_service.get_all(Scan, user_id=user_id)
+    for scan in scans:
+        vulnerabilities = await database_service.get_all(Vulnerability, scan_id=str(scan.scan_id))
+        for vuln in vulnerabilities:
+            await database_service.delete(Vulnerability, id=vuln.id)
+        await database_service.delete(Scan, scan_id=str(scan.scan_id))
+    return {"message": f"{len(scans)} scan(s) deleted successfully"}

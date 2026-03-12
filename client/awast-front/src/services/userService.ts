@@ -41,4 +41,14 @@ export default {
         const response = await apiClient.get(`/user/my/scan/${scanId}/results`);
         return response.data;
     },
+
+    async deleteScan(scanId: string) {
+        const response = await apiClient.delete(`/user/my/scan/${scanId}`);
+        return response.data;
+    },
+
+    async clearAllScans() {
+        const response = await apiClient.delete('/user/my/scans/all');
+        return response.data;
+    },
 };

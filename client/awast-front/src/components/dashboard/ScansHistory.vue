@@ -2,16 +2,21 @@
 import { useRouter } from 'vue-router';
 import reportService from '@/services/reportService';
 import { ref } from 'vue';
+import { useScanStore } from '@/stores/scanStore';
 
 const router = useRouter();
+const scanStore = useScanStore();
 
 const props = defineProps<{
   scans: any[];
 }>();
 
 const reportLoading = ref<string | null>(null);
+const deleteDialog = ref(false);
+const scanToDelete = ref<string | null>(null);
+const isDeleting = ref(false);
 
-const tableHeaders = ['Target', 'Status', 'Date', 'Report', 'View'];
+const tableHeaders = ['Target', 'Status', 'Date', 'Report', ''];
 
 function determineStatus(status: string) {
     switch (status) {
@@ -49,6 +54,30 @@ const viewScan = (scanId: string) => {
 
 const viewAll = () => {
   router.push('/scanner/history');
+};
+
+const confirmDelete = (scanId: string) => {
+  scanToDelete.value = scanId;
+  deleteDialog.value = true;
+};
+
+const cancelDelete = () => {
+  deleteDialog.value = false;
+  scanToDelete.value = null;
+};
+
+const executeDelete = async () => {
+  if (!scanToDelete.value) return;
+  isDeleting.value = true;
+  try {
+    await scanStore.deleteScan(scanToDelete.value);
+    deleteDialog.value = false;
+    scanToDelete.value = null;
+  } catch (error) {
+    console.error('Failed to delete scan', error);
+  } finally {
+    isDeleting.value = false;
+  }
 };
 </script>
 
@@ -102,6 +131,7 @@ const viewAll = () => {
           </td>
           <td>
             <v-btn icon="mdi-chevron-right" variant="text" density="comfortable" color="grey" @click="viewScan(scan.scan_id)"></v-btn>
+            <v-btn icon="mdi-trash-can-outline" variant="text" density="comfortable" color="error" @click="confirmDelete(scan.scan_id)"></v-btn>
           </td>
         </tr>
       </tbody>
@@ -112,6 +142,26 @@ const viewAll = () => {
     </div>
   </v-card-text>
 </v-card>
+
+<!-- Delete Confirmation Dialog -->
+<v-dialog v-model="deleteDialog" max-width="420" persistent>
+  <v-card class="rounded-lg" elevation="4">
+    <v-card-title class="d-flex align-center pt-5 px-6">
+      <v-icon icon="mdi-alert-circle-outline" color="error" class="mr-2"></v-icon>
+      Delete Scan
+    </v-card-title>
+    <v-card-text class="px-6 pb-2">
+      <p class="text-body-1 text-grey-darken-2">
+        Are you sure you want to delete this scan? All associated vulnerabilities will be permanently removed.
+      </p>
+    </v-card-text>
+    <v-card-actions class="px-6 pb-5 pt-2">
+      <v-spacer></v-spacer>
+      <v-btn variant="text" color="grey" class="text-none" @click="cancelDelete" :disabled="isDeleting">Cancel</v-btn>
+      <v-btn variant="elevated" color="error" class="text-none" :loading="isDeleting" @click="executeDelete">Delete</v-btn>
+    </v-card-actions>
+  </v-card>
+</v-dialog>
 </template>
 
 <style scoped>
