@@ -30,6 +30,7 @@ export interface UserLogin {
 export interface RequestBody {
   target: string;
   cookies?: Record<string, string>;
+  headers?: Record<string, string>;
 }
 
 export interface ChainStep {
@@ -72,6 +73,7 @@ export interface ExploiterRequestBody {
   params: string;
   vuln_type: string;
   cookies?: Record<string, string>;
+  headers?: Record<string, string>;
   method: string;
   ws_id?: string;
   previous_payloads?: string[];

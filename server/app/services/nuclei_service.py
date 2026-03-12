@@ -80,6 +80,8 @@ def normalize_nuclei_finding(finding: dict) -> dict:
 async def run_nuclei_scan(
     target_url: str,
     urls: list[str] | None = None,
+    cookies: dict[str, str] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> AsyncGenerator[dict, None]:
     """
     Async generator that yields normalized findings as Nuclei discovers them.
@@ -87,6 +89,11 @@ async def run_nuclei_scan(
     If `urls` is provided (a list of URLs from the ZAP spider), Nuclei is
     pointed at a temporary file containing those URLs via `-list`. Otherwise
     it scans the bare `target_url` with `-u`.
+
+    `cookies` are merged into a single `Cookie: k=v; k2=v2` header.
+    `headers` are passed individually as `-H "key: value"` flags.
+    Both allow authenticated scanning of apps using session cookies or
+    JWT tokens extracted from localStorage.
     """
     cmd = [
         settings.NUCLEI_PATH,
@@ -95,6 +102,16 @@ async def run_nuclei_scan(
         "-severity", settings.NUCLEI_SEVERITY,
         "-no-interactsh",   # avoid external callbacks in controlled scans
     ]
+
+    # Inject cookies as a single Cookie header
+    if cookies:
+        cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items())
+        cmd += ["-H", f"Cookie: {cookie_str}"]
+
+    # Inject custom headers (e.g. Authorization: Bearer <jwt>)
+    if headers:
+        for name, value in headers.items():
+            cmd += ["-H", f"{name}: {value}"]
 
     tmp_path: str | None = None
 

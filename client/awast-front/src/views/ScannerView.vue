@@ -37,6 +37,41 @@ const buildCookiesObject = (): Record<string, string> | undefined => {
   if (entries.length === 0) return undefined;
   return Object.fromEntries(entries.map(e => [e.key.trim(), e.value]));
 };
+
+// Headers key-value editor
+interface HeaderEntry {
+  key: string;
+  value: string;
+}
+const headerEntries = ref<HeaderEntry[]>([]);
+const showHeaders = ref(false);
+const localStorageKey = ref('access_token');
+
+const addHeaderEntry = () => {
+  headerEntries.value.push({ key: '', value: '' });
+};
+
+const removeHeaderEntry = (index: number) => {
+  headerEntries.value.splice(index, 1);
+};
+
+const buildHeadersObject = (): Record<string, string> | undefined => {
+  const entries = headerEntries.value.filter(e => e.key.trim() !== '');
+  if (entries.length === 0) return undefined;
+  return Object.fromEntries(entries.map(e => [e.key.trim(), e.value]));
+};
+
+const extractJwtFromStorage = () => {
+  const token = localStorage.getItem(localStorageKey.value.trim());
+  if (!token) {
+    errorMsg.value = `No value found in localStorage for key "${localStorageKey.value}"`;
+    return;
+  }
+  // Remove any existing Authorization header entry before inserting
+  headerEntries.value = headerEntries.value.filter(e => e.key.trim().toLowerCase() !== 'authorization');
+  headerEntries.value.push({ key: 'Authorization', value: `Bearer ${token}` });
+  showHeaders.value = true;
+};
 const successMsg = ref('');
 const scanPhase = ref(''); // 'spider' | 'scan' | ''
 const isStartingScan = ref(false);
@@ -71,6 +106,7 @@ const startScan = async () => {
   errorMsg.value = '';
   successMsg.value = '';
   const cookies = buildCookiesObject();
+  const headers = buildHeadersObject();
 
   try {
     // Phase 1 — Spider
@@ -85,7 +121,7 @@ const startScan = async () => {
     // Phase 2 — Active Scan
     scanPhase.value = 'scan';
     scanStore.scanProgress = 0;
-    await scanStore.startScan(targetUrl.value, cookies);
+    await scanStore.startScan(targetUrl.value, cookies, headers);
     isStartingScan.value = false;
 
     if (!scanStore.activeScanId) return;
@@ -339,6 +375,103 @@ watch(
                     :disabled="isStartingScan"
                   >
                     Add Cookie
+                  </v-btn>
+                </div>
+              </v-expand-transition>
+
+              <!-- Headers Toggle -->
+              <div class="auth-section mb-5">
+                <v-card class="toggle-card pa-4" elevation="0">
+                  <div class="d-flex align-center justify-space-between">
+                    <div class="d-flex align-center">
+                      <v-icon icon="mdi-web" color="secondary" class="mr-3"></v-icon>
+                      <div>
+                        <div class="font-weight-medium text-slate-800">Custom Headers</div>
+                        <div class="text-caption text-grey-darken-1">Add Authorization or other headers (e.g. JWT Bearer token)</div>
+                      </div>
+                    </div>
+                    <v-switch
+                      v-model="showHeaders"
+                      hide-details
+                      color="secondary"
+                      inset
+                      class="ml-4"
+                      :disabled="isStartingScan"
+                    ></v-switch>
+                  </div>
+                </v-card>
+              </div>
+
+              <!-- Headers Editor Section -->
+              <v-expand-transition>
+                <div v-if="showHeaders" class="credentials-section mb-5">
+                  <!-- localStorage JWT quick-fill -->
+                  <div class="d-flex align-center mb-4 pa-3" style="background: rgba(102,126,234,0.05); border-radius:12px; border:1px dashed rgba(102,126,234,0.2)">
+                    <v-icon icon="mdi-database-outline" color="primary" size="20" class="mr-2"></v-icon>
+                    <v-text-field
+                      v-model="localStorageKey"
+                      density="compact"
+                      placeholder="localStorage key (e.g. access_token)"
+                      variant="outlined"
+                      color="primary"
+                      bg-color="white"
+                      class="modern-input mr-2"
+                      hide-details
+                      style="max-width: 240px"
+                      :disabled="isStartingScan"
+                    ></v-text-field>
+                    <v-btn
+                      variant="tonal"
+                      color="primary"
+                      size="small"
+                      prepend-icon="mdi-import"
+                      class="text-none"
+                      @click="extractJwtFromStorage"
+                      :disabled="isStartingScan"
+                    >
+                      Extract JWT
+                    </v-btn>
+                  </div>
+
+                  <div v-for="(entry, index) in headerEntries" :key="index" class="d-flex align-center mb-3">
+                    <v-text-field
+                      v-model="entry.key"
+                      density="comfortable"
+                      placeholder="Header name (e.g. Authorization)"
+                      label="Header Name"
+                      prepend-inner-icon="mdi-web"
+                      variant="outlined"
+                      color="secondary"
+                      bg-color="white"
+                      class="modern-input mr-3"
+                      hide-details
+                      :disabled="isStartingScan"
+                    ></v-text-field>
+                    <v-text-field
+                      v-model="entry.value"
+                      density="comfortable"
+                      placeholder="Header value"
+                      label="Header Value"
+                      prepend-inner-icon="mdi-text-short"
+                      variant="outlined"
+                      color="secondary"
+                      bg-color="white"
+                      class="modern-input mr-3"
+                      hide-details
+                      :disabled="isStartingScan"
+                    ></v-text-field>
+                    <v-btn icon="mdi-close" size="small" variant="text" color="red" @click="removeHeaderEntry(index)"></v-btn>
+                  </div>
+                  <v-btn
+                    variant="tonal"
+                    color="secondary"
+                    size="small"
+                    prepend-icon="mdi-plus"
+                    class="text-none"
+                    @click="addHeaderEntry"
+                    :disabled="isStartingScan"
+                  >
+                    Add Header
                   </v-btn>
                 </div>
               </v-expand-transition>

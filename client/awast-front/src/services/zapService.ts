@@ -14,9 +14,10 @@ export default {
         return response.data;
     },
 
-    async startScan(target: string, cookies?: Record<string, string>) {
+    async startScan(target: string, cookies?: Record<string, string>, headers?: Record<string, string>) {
         const body: RequestBody = { target };
         if (cookies) body.cookies = cookies;
+        if (headers) body.headers = headers;
         const response = await apiClient.post('/zap/scan', body);
         return response.data;
     },

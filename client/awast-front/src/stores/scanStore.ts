@@ -33,7 +33,7 @@ export const useScanStore = defineStore('scan', {
                 throw error;
             }
         },
-        async startScan(target: string, cookies?: Record<string, string>) {
+        async startScan(target: string, cookies?: Record<string, string>, headers?: Record<string, string>) {
             this.isScanning = true;
             this.targetUrl = target;
             this.scanProgress = 0;
@@ -41,7 +41,7 @@ export const useScanStore = defineStore('scan', {
             this.alerts = [];
 
             try {
-                const response = await zapService.startScan(target, cookies);
+                const response = await zapService.startScan(target, cookies, headers);
                 this.activeScanId = response.scan_id;
                 return response;
             } catch (error) {

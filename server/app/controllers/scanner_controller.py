@@ -36,6 +36,8 @@ async def zap_scan(
         result["scan_id"],
         target.target,
         result["zap_index"],
+        target.cookies,
+        target.headers,
     )
     return {"scan_id": result["scan_id"], "scan_index": result["scan_index"]}
 

@@ -325,13 +325,25 @@ async def get_spider_urls(target_url: str) -> list[str]:
         return []
 
 
-async def run_scan(scan_id: int, target_url: str, scan_index: str):
+async def run_scan(
+    scan_id: int,
+    target_url: str,
+    scan_index: str,
+    cookies: Optional[Dict[str, str]] = None,
+    headers: Optional[Dict[str, str]] = None,
+):
     from core.database import async_session
     async with async_session() as db:
-        await _run_scan_internal(scan_id, target_url, db)
+        await _run_scan_internal(scan_id, target_url, db, cookies=cookies, headers=headers)
 
 
-async def _run_scan_internal(scan_id: int, target_url: str, db: AsyncSession):
+async def _run_scan_internal(
+    scan_id: int,
+    target_url: str,
+    db: AsyncSession,
+    cookies: Optional[Dict[str, str]] = None,
+    headers: Optional[Dict[str, str]] = None,
+):
     import services.nuclei_service as nuclei_service
 
     database_service = AsyncDatabaseService(lambda: db)
@@ -345,7 +357,7 @@ async def _run_scan_internal(scan_id: int, target_url: str, db: AsyncSession):
         total_count = 0
         scan_id_str = str(scan_id)
 
-        async for finding in nuclei_service.run_nuclei_scan(target_url, urls or None):
+        async for finding in nuclei_service.run_nuclei_scan(target_url, urls or None, cookies=cookies, headers=headers):
             if scan_id_str in _cancelled_scans:
                 _cancelled_scans.discard(scan_id_str)
                 logger.info(f"Scan {scan_id} cancelled by user during Nuclei run")
