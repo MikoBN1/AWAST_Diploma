@@ -118,6 +118,8 @@ async def start_scan(
     cookies: Optional[Dict[str, str]] = None,
 ) -> dict:
     database_service = AsyncDatabaseService(lambda: db)
+    spider_id = 0
+
     async with httpx.AsyncClient(timeout=60.0) as client:
         # Inject auth cookies into ZAP via Replacer if provided
         if cookies:
@@ -126,18 +128,6 @@ async def start_scan(
             except Exception as e:
                 logger.warning(f"Failed to setup ZAP session for {target}: {e}")
 
-        # Set minimum confidence threshold in ZAP
-        try:
-            threshold = CONFIDENCE_MAP.get(settings.ZAP_MIN_CONFIDENCE, "1")
-            await _zap_get(
-                client,
-                f"{settings.ZAP_API_URL}/JSON/ascan/action/setOptionAlertThreshold/",
-                {"apikey": settings.ZAP_API_KEY, "String": threshold}
-            )
-            logger.info(f"ZAP Alert Threshold set to {settings.ZAP_MIN_CONFIDENCE} ({threshold})")
-        except Exception as e:
-            logger.warning(f"Failed to set ZAP Alert Threshold: {e}")
-
         # Spider the target to discover forms and parameters
         try:
             spider_resp = await _zap_get(
@@ -145,7 +135,7 @@ async def start_scan(
                 f"{settings.ZAP_API_URL}/JSON/spider/action/scan/",
                 {"apikey": settings.ZAP_API_KEY, "url": target},
             )
-            spider_id = spider_resp.get("scan")
+            spider_id = int(spider_resp.get("scan", 0))
             logger.info(f"Spider started for {target} with id={spider_id}")
 
             for _ in range(120):
@@ -162,16 +152,12 @@ async def start_scan(
         except Exception as e:
             logger.warning(f"Spider failed for {target}: {e}")
 
-        data = await _zap_get(
-            client,
-            f"{settings.ZAP_API_URL}/JSON/ascan/action/scan/",
-            {"apikey": settings.ZAP_API_KEY, "url": target}
-        )
-
+    # Active scan is now handled by Nuclei in the background task.
+    # We reuse zap_index to store the spider scan ID (satisfies nullable=False).
     scan_data = Scan(
         target=target,
         created_at=datetime.utcnow(),
-        zap_index=int(data.get("scan")),
+        zap_index=spider_id,
         user_id=user_id,
     )
     created_scan = await database_service.create(scan_data)
@@ -179,8 +165,8 @@ async def start_scan(
 
     return {
         "scan_id": created_scan.scan_id,
-        "scan_index": data.get("scan"),
-        "zap_index": str(created_scan.zap_index),
+        "scan_index": str(spider_id),
+        "zap_index": str(spider_id),
     }
 
 
@@ -318,164 +304,98 @@ async def abort_scan(scan_id: str) -> dict:
     return {"status": "stopped", "scan_id": str(scan_id)}
 
 
+async def get_spider_urls(target_url: str) -> list[str]:
+    """Fetch all URLs discovered by ZAP spider for the given target."""
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/spider/view/allUrls/",
+                {"apikey": settings.ZAP_API_KEY},
+            )
+        all_urls: list[str] = resp.get("urls", [])
+        parsed_target = urlparse(target_url)
+        target_host = parsed_target.netloc
+
+        filtered = [u for u in all_urls if urlparse(u).netloc == target_host]
+        logger.info(f"ZAP spider found {len(filtered)} URLs for {target_url}")
+        return filtered
+    except Exception as e:
+        logger.warning(f"Failed to retrieve spider URLs from ZAP: {e}. Falling back to target URL only.")
+        return []
+
+
 async def run_scan(scan_id: int, target_url: str, scan_index: str):
     from core.database import async_session
     async with async_session() as db:
-        await _run_scan_internal(scan_id, target_url, scan_index, db)
+        await _run_scan_internal(scan_id, target_url, db)
 
-async def _run_scan_internal(scan_id: int, target_url: str, scan_index: str, db: AsyncSession):
+
+async def _run_scan_internal(scan_id: int, target_url: str, db: AsyncSession):
+    import services.nuclei_service as nuclei_service
+
     database_service = AsyncDatabaseService(lambda: db)
-    logger.info(f"Starting run_scan for scan_id={scan_id}, target={target_url}, zap_scan_index={scan_index}")
+    logger.info(f"Starting Nuclei scan for scan_id={scan_id}, target={target_url}")
+
     try:
-        seen_alert_ids = set()
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            max_retries = 60
-            cancelled = False
-            for _ in range(max_retries):
-                scan_id_str = str(scan_id)
-                if scan_id_str in _cancelled_scans:
-                    _cancelled_scans.discard(scan_id_str)
-                    cancelled = True
-                    logger.info(f"Scan {scan_id} cancelled by user during polling")
-                    break
+        # Fetch URLs discovered by ZAP spider to feed Nuclei
+        urls = await get_spider_urls(target_url)
 
-                status_resp = await client.get(
-                    f"{settings.ZAP_API_URL}/JSON/ascan/view/status/",
-                    params={"apikey": settings.ZAP_API_KEY, "scanId": scan_index}
-                )
-                status = status_resp.json()
-                progress = int(status.get("status", 0))
-                
-                alerts_ids_resp = await client.get(
-                    f"{settings.ZAP_API_URL}/JSON/ascan/view/alertsIds/",
-                    params={"apikey": settings.ZAP_API_KEY, "scanId": scan_index}
-                )
-                current_alert_ids = alerts_ids_resp.json().get("alertsIds", [])
-                
-                new_alerts = []
-                if isinstance(current_alert_ids, list):
-                    for aid in current_alert_ids:
-                        aid_str = str(aid)
-                        if aid_str not in seen_alert_ids:
-                            alert_detail_resp = await client.get(
-                                f"{settings.ZAP_API_URL}/JSON/core/view/alert/",
-                                params={"apikey": settings.ZAP_API_KEY, "id": aid_str}
-                            )
-                            alert_detail = alert_detail_resp.json().get("alert", {})
-                            if alert_detail:
-                                logger.debug(f"Scan {scan_id} found new alert: {alert_detail.get('alert')} on {alert_detail.get('url')}")
-                                new_alerts.append({
-                                    "id": aid_str,
-                                    "name": alert_detail.get("alert", "Unknown"),
-                                    "risk": alert_detail.get("risk", "Info"),
-                                    "url": alert_detail.get("url", "")
-                                })
-                            seen_alert_ids.add(aid_str)
-                
-                await manager.broadcast(str(scan_id), {
-                    "type": "progress",
-                    "progress": progress,
-                    "new_alerts": new_alerts,
-                    "total_alerts": len(seen_alert_ids)
+        alerts_data: list[dict] = []
+        total_count = 0
+        scan_id_str = str(scan_id)
+
+        async for finding in nuclei_service.run_nuclei_scan(target_url, urls or None):
+            if scan_id_str in _cancelled_scans:
+                _cancelled_scans.discard(scan_id_str)
+                logger.info(f"Scan {scan_id} cancelled by user during Nuclei run")
+                await database_service.update(Scan, {"scan_id": scan_id}, {"status": "stopped"})
+                await manager.broadcast(scan_id_str, {
+                    "type": "stopped",
+                    "message": "Scan was stopped by user",
                 })
-
-                if progress >= 100:
-                    break
-                await asyncio.sleep(5)
-            else:
-                if not cancelled:
-                    await database_service.update(
-                        Scan,
-                        {"scan_id": scan_id},
-                        {"status": "error"}
-                    )
-                    await manager.broadcast(str(scan_id), {
-                        "type": "error",
-                        "message": "Scan timeout"
-                    })
-                    return
-
-            if cancelled:
                 return
 
-            resp = await client.get(
-                f"{settings.ZAP_API_URL}/JSON/core/view/alerts/",
-                params={"apikey": settings.ZAP_API_KEY, "baseurl": target_url}
-            )
-            data = resp.json()
-            vulnerabilities_raw = data.get("alerts", [])
-            
-            # Filter by minimum confidence level
-            min_conf = settings.ZAP_MIN_CONFIDENCE
-            confidence_threshold = int(CONFIDENCE_MAP.get(min_conf, "1"))
-            
-            filtered_vulnerabilities = []
-            for v in vulnerabilities_raw:
-                conf_label = v.get("confidence", "Low")
-                conf_val = int(CONFIDENCE_MAP.get(conf_label, "0"))
-                if conf_val >= confidence_threshold:
-                    filtered_vulnerabilities.append(v)
-            
-            vulnerabilities_raw = filtered_vulnerabilities
-            alerts_data = []
+            try:
+                vuln_schema = VulnerabilitySchema(**finding)
+                vuln_data = vuln_schema.model_dump()
+                vuln_data["url"] = str(vuln_data["url"])
 
-            for vuln_raw in vulnerabilities_raw:
-                try:
-                    message_id = vuln_raw.get("messageId")
-                    parameter = vuln_raw.get("param")
-                    payload = vuln_raw.get("attack")
+                await database_service.create(Vulnerability(**vuln_data, scan_id=scan_id))
+                alerts_data.append(vuln_data)
+                total_count += 1
 
-                    request_text = ""
-                    response_text = ""
+                await manager.broadcast(scan_id_str, {
+                    "type": "progress",
+                    "progress": -1,  # Nuclei has no percentage progress
+                    "new_alerts": [{
+                        "name": vuln_data.get("name", "Unknown"),
+                        "risk": vuln_data.get("risk", "Info"),
+                        "url": vuln_data.get("url", ""),
+                    }],
+                    "total_alerts": total_count,
+                })
+            except Exception as ex:
+                logger.error(f"Error saving Nuclei finding: {ex}", exc_info=True)
 
-                    if message_id:
-                        try:
-                            msg_resp = await client.get(
-                                f"{settings.ZAP_API_URL}/JSON/core/view/message/",
-                                params={"apikey": settings.ZAP_API_KEY, "id": message_id}
-                            )
-                            msg_data = msg_resp.json().get("message", {})
-                            request_text = msg_data.get("requestHeader", "") + "\n\n" + msg_data.get("requestBody", "")
-                            response_text = msg_data.get("responseHeader", "") + "\n\n" + msg_data.get("responseBody", "")
-                        except Exception as e:
-                            logger.error(f"Failed to fetch ZAP message ID {message_id}: {e}")
+        if scan_id_str in _cancelled_scans:
+            _cancelled_scans.discard(scan_id_str)
+            return
 
-                    vuln = VulnerabilitySchema(**vuln_raw)
-                    vuln_data = vuln.model_dump()
-                    vuln_data["url"] = str(vuln_data["url"])
-                    vuln_data["parameter"] = parameter
-                    vuln_data["payload"] = payload
-                    vuln_data["request"] = request_text
-                    vuln_data["response"] = response_text
-
-                    await database_service.create(Vulnerability(**vuln_data, scan_id=scan_id))
-                    alerts_data.append(vuln_data)
-                except Exception as ex:
-                    logger.error(f"Error processing vulnerability row: {ex}", exc_info=True)
-
-            await database_service.update(
-                Scan,
-                {"scan_id": scan_id},
-                {"status": "done"}
-            )
-            
-            await manager.broadcast(str(scan_id), {
-                "type": "done",
-                "progress": 100,
-                "alerts_count": len(alerts_data),
-                "total_alerts": len(seen_alert_ids),
-                "alerts": alerts_data
-            })
-            logger.info(f"Scan {scan_id} completed successfully. Found {len(alerts_data)} vulnerabilities.")
+        await database_service.update(Scan, {"scan_id": scan_id}, {"status": "done"})
+        await manager.broadcast(scan_id_str, {
+            "type": "done",
+            "progress": 100,
+            "alerts_count": len(alerts_data),
+            "total_alerts": total_count,
+            "alerts": alerts_data,
+        })
+        logger.info(f"Nuclei scan {scan_id} completed. Found {len(alerts_data)} vulnerabilities.")
 
     except Exception as e:
-        await database_service.update(
-            Scan,
-            {"scan_id": scan_id},
-            {"status": "error"}
-        )
+        await database_service.update(Scan, {"scan_id": scan_id}, {"status": "error"})
         await manager.broadcast(str(scan_id), {
             "type": "error",
-            "message": str(e)
+            "message": str(e),
         })
         logger.error(f"Error in run_scan for scan_id={scan_id}: {e}", exc_info=True)
