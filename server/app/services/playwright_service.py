@@ -5,6 +5,8 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 import json
+from typing import Tuple, Dict, Any, Optional
+from urllib.parse import urlparse
 
 
 def login_and_save_session(
@@ -18,7 +20,7 @@ def login_and_save_session(
 
     print(f"[+] Цель: {login_url}")
 
-    driver = None  # ключевой фикс
+    driver = None
 
     try:
         chrome_options = Options()
@@ -77,11 +79,77 @@ def login_and_save_session(
         cookies_dict = {c["name"]: c["value"] for c in cookies}
         cookies_dict["security"] = "low"
 
-        driver.quit()
         return cookies_dict
 
     except Exception as e:
         print(f"[!] Ошибка: {e}")
+        raise Exception(str(e))
+    finally:
         if driver:
             driver.quit()
-        raise Exception(str(e))
+
+
+def check_dom_xss(
+    url: str,
+    cookies: dict = None,
+    headless: bool = True,
+    timeout: int = 15
+) -> Tuple[bool, str]:
+    """
+    Checks if a URL (with payload) triggers an alert dialog or other indicators of XSS.
+    Returns (is_vulnerable, message)
+    """
+    driver = None
+    try:
+        chrome_options = Options()
+        if headless:
+            chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--window-size=800,600")
+        chrome_options.add_argument("--disable-gpu")
+        # To avoid being blocked by some WAFs or security headers in headless mode
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+
+        driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager().install()),
+            options=chrome_options
+        )
+        driver.set_page_load_timeout(timeout)
+
+        # Set cookies if provided
+        if cookies:
+            # We need to be on the domain to set cookies
+            try:
+                domain_url = f"{urlparse(url).scheme}://{urlparse(url).netloc}/"
+                driver.get(domain_url)
+                for name, value in cookies.items():
+                    driver.add_cookie({"name": name, "value": value})
+            except Exception as ce:
+                print(f"[!] Warning: Could not set cookies: {ce}")
+
+        # Navigate to the target URL with payload
+        driver.get(url)
+        
+        # Give it a moment to execute JS
+        time.sleep(3)
+
+        is_vulnerable = False
+        message = "No alert detected."
+
+        try:
+            # Check for alert
+            alert = driver.switch_to.alert
+            alert_text = alert.text
+            is_vulnerable = True
+            message = f"XSS Triggered! Alert text: {alert_text}"
+            alert.accept()
+        except:
+            # No alert, check if payload is in DOM but maybe not executed
+            pass
+
+        return is_vulnerable, message
+
+    except Exception as e:
+        return False, f"Error during DOM XSS check: {str(e)}"
+    finally:
+        if driver:
+            driver.quit()
