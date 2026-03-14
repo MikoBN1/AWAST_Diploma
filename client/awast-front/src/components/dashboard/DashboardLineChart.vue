@@ -32,8 +32,27 @@ const props = defineProps({
 })
 
 const chartData = computed(() => {
-  const labels = props.items.map(i => i.created_at)
-  const dataValues = props.items.map(i => i.count)
+  const labels = props.items.map(i => {
+    const date = new Date(i.created_at);
+    if (isNaN(date.getTime())) {
+      return 'Invalid date'; 
+    }
+    return date.toISOString().split('T')[0];
+  })
+  const countsByDate = props.items.reduce((acc, item) => {
+  if (!item || typeof item.created_at !== 'string') return acc;
+
+  const date = new Date(item.created_at);
+  if (isNaN(date.getTime())) return acc;
+
+  const formattedDate = date.toISOString().split('T')[0];
+
+  const count = Number(item.count) || 0; 
+
+  acc[formattedDate as keyof typeof acc] = (acc[formattedDate as keyof typeof acc] || 0) + count;
+  return acc;
+  }, Object.create(null)); 
+  const dataValues = countsByDate
 
   return {
     labels,

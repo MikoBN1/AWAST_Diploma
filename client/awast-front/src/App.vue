@@ -13,7 +13,7 @@ const showHeader = computed(() => !route.meta?.hideHeader)
     <NavigationSidebar v-if="showHeader" />
     <HeaderComponent v-if="showHeader" />
     <v-main>
-      <div class="container-fluid">
+      <div :class="[{ 'm-0 container-fluid': !route.meta.hideHeader}]">
         <RouterView />
       </div>
     </v-main>

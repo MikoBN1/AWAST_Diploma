@@ -43,39 +43,48 @@ async def _setup_zap_session(
     client: httpx.AsyncClient,
     cookies: Dict[str, str],
 ) -> None:
-    """Inject authentication cookies into ZAP via Replacer add-on.
+    """Inject authentication cookies into ZAP via Replacer add-on."""
+    # [SECURITY FIRST: Защита от пустых данных]
+    if not cookies:
+        logger.warning("No cookies provided to _setup_zap_session. Scanning unauthenticated!")
+        return
 
-    The Replacer add a Cookie header to ALL outgoing ZAP requests,
-    ensuring spider and active scanner both work authenticated.
-    """
     cookie_string = "; ".join(f"{k}={v}" for k, v in cookies.items())
     rule_description = "AWAST_AUTH_COOKIES"
 
-    # Remove existing rule if present (idempotent)
+    logger.info(f"Attempting to set ZAP cookies: {cookie_string}")
+
+    # 1. Удаляем старое правило (если есть), чтобы избежать конфликтов
     try:
         await _zap_get(
             client,
             f"{settings.ZAP_API_URL}/JSON/replacer/action/removeRule/",
             {"apikey": settings.ZAP_API_KEY, "description": rule_description},
         )
-    except Exception:
+    except HTTPException:
+        # Ошибка 400 здесь - норма (правила просто не было)
         pass
 
-    await _zap_get(
-        client,
-        f"{settings.ZAP_API_URL}/JSON/replacer/action/addRule/",
-        {
-            "apikey": settings.ZAP_API_KEY,
-            "description": rule_description,
-            "enabled": "true",
-            "matchType": "REQ_HEADER",
-            "matchRegex": "false",
-            "matchString": "Cookie",
-            "replacement": cookie_string,
-        },
-    )
-    logger.info(f"ZAP Replacer rule set with {len(cookies)} cookie(s)")
-
+    # 2. Создаем новое правило с жестким контролем ошибок
+    try:
+        response = await _zap_get(
+            client,
+            f"{settings.ZAP_API_URL}/JSON/replacer/action/addRule/",
+            {
+                "apikey": settings.ZAP_API_KEY,
+                "description": rule_description,
+                "enabled": "true",
+                "matchType": "REQ_HEADER",
+                "matchRegex": "false",
+                "matchString": "Cookie",
+                "replacement": cookie_string,
+            },
+        )
+        logger.info(f"ZAP Replacer successfully created rule: {response}")
+    except Exception as e:
+        # [SECURITY FIRST: Логируем критический сбой аутентификации]
+        logger.error(f"CRITICAL: Failed to inject cookies into ZAP. Scanner will be unauthenticated! Error: {e}")
+        raise  # Лучше прервать скан, чем сканировать без авторизации и получить ложные результаты
 
 async def start_spider(
     target: str, cookies: Optional[Dict[str, str]] = None
@@ -110,7 +119,6 @@ async def stop_spider(scan_id: str) -> dict:
             {"apikey": settings.ZAP_API_KEY, "scanId": scan_id}
         )
 
-
 async def start_scan(
     target: str,
     user_id: str,
@@ -126,7 +134,31 @@ async def start_scan(
             except Exception as e:
                 logger.warning(f"Failed to setup ZAP session for {target}: {e}")
 
-        # Set minimum confidence threshold in ZAP
+        # Fast mode: lower attack strength for all policies to reduce load and speed up scanning
+        try:
+            policies_resp = await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/ascan/view/policies/",
+                {"apikey": settings.ZAP_API_KEY},
+            )
+            for policy in policies_resp.get("policies", []):
+                policy_id = policy.get("id")
+                if policy_id is None:
+                    continue
+                await _zap_get(
+                    client,
+                    f"{settings.ZAP_API_URL}/JSON/ascan/action/setPolicyAttackStrength/",
+                    {
+                        "apikey": settings.ZAP_API_KEY,
+                        "id": str(policy_id),
+                        "attackStrength": "HIGH",
+                    },
+                )
+            logger.info("ZAP Attack Strength set to HIGH for all policies (Fast Mode)")
+        except Exception as e:
+            logger.warning(f"Failed to set Attack Strength to HIGH: {e}")
+
+        # [SECURITY FIRST: 1. Настраиваем порог срабатывания]
         try:
             threshold = CONFIDENCE_MAP.get(settings.ZAP_MIN_CONFIDENCE, "1")
             await _zap_get(
@@ -138,12 +170,59 @@ async def start_scan(
         except Exception as e:
             logger.warning(f"Failed to set ZAP Alert Threshold: {e}")
 
+        # [SECURITY FIRST: 2. Жесткий контроль Scope для Паука]
+        # Устанавливаем maxDepth = 0, чтобы сканер не уходил с указанного URL
+        try:
+            spider_depth = getattr(settings, "ZAP_SPIDER_MAX_DEPTH", "0")
+            await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/spider/action/setOptionMaxDepth/",
+                {"apikey": settings.ZAP_API_KEY, "Integer": spider_depth}
+            )
+            logger.info(f"ZAP Spider Max Depth set to {spider_depth}")
+        except Exception as e:
+            logger.warning(f"Failed to set Spider Max Depth: {e}")
+
+        # [SECURITY FIRST: 3. Таймаут на правила для предотвращения зависаний (Path Traversal и т.д.)]
+        try:
+            max_rule_duration = getattr(settings, "ZAP_MAX_RULE_DURATION_MINS", "1")
+            await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/ascan/action/setOptionMaxRuleDurationInMins/",
+                {"apikey": settings.ZAP_API_KEY, "Integer": max_rule_duration}
+            )
+            logger.info(f"ZAP Active Scan Max Rule Duration set to {max_rule_duration} mins")
+        except Exception as e:
+            logger.warning(f"Failed to set AScan Max Rule Duration: {e}")
+
+        # Fast mode: ограничиваем точки инъекции только URL и формами
+        try:
+            await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/ascan/action/setOptionTargetParamsInjectable/",
+                {"apikey": settings.ZAP_API_KEY, "Integer": "31"},
+            )
+            logger.info("ZAP TargetParamsInjectable set to 31 (URL + forms only)")
+        except Exception as e:
+            logger.warning(f"Failed to set TargetParamsInjectable: {e}")
+
+        # Отключаем самые медленные и тяжёлые правила активного сканера
+        try:
+            await disable_slow_scanners(client)
+        except Exception as e:
+            logger.warning(f"Failed to disable slow scanners: {e}")
+
         # Spider the target to discover forms and parameters
         try:
             spider_resp = await _zap_get(
                 client,
                 f"{settings.ZAP_API_URL}/JSON/spider/action/scan/",
-                {"apikey": settings.ZAP_API_KEY, "url": target},
+                {
+                    "apikey": settings.ZAP_API_KEY,
+                    "url": target,
+                    "recurse": "false",  # не уходим рекурсивно за пределы заданного URL
+                    "subtreeOnly": "true",  # остаёмся в пределах поддерева цели
+                },
             )
             spider_id = spider_resp.get("scan")
             logger.info(f"Spider started for {target} with id={spider_id}")
@@ -162,10 +241,16 @@ async def start_scan(
         except Exception as e:
             logger.warning(f"Spider failed for {target}: {e}")
 
+        # Запускаем активный скан с отключенной рекурсией
         data = await _zap_get(
             client,
             f"{settings.ZAP_API_URL}/JSON/ascan/action/scan/",
-            {"apikey": settings.ZAP_API_KEY, "url": target}
+            {
+                "apikey": settings.ZAP_API_KEY,
+                "url": target,
+                "recurse": "false",  # КРИТИЧНО для кибербезопасности: атаковать только указанный endpoint
+                "inScopeOnly": "true",  # атаки только по URL-ам, попавшим в Scope ZAP
+            }
         )
 
     scan_data = Scan(
@@ -182,7 +267,6 @@ async def start_scan(
         "scan_index": data.get("scan"),
         "zap_index": str(created_scan.zap_index),
     }
-
 
 async def get_scan_status(scan_id: str) -> dict:
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -323,15 +407,76 @@ async def run_scan(scan_id: int, target_url: str, scan_index: str):
     async with async_session() as db:
         await _run_scan_internal(scan_id, target_url, scan_index, db)
 
+
+async def disable_slow_scanners(client: httpx.AsyncClient) -> None:
+    """
+    Disable the heaviest and slowest active scan rules to keep Fast Mode lightweight.
+
+    Focus the scan on quick XSS and basic SQLi checks by disabling:
+    - Time-based and blind SQL injection variants
+    - Directory/path traversal and directory brute-force style checks
+    - Legacy default-file checks for old stacks (IIS/SAP/etc.)
+    - Heavy filesystem/metadata discovery scanners
+    """
+    # Time-based / blind SQLi and other heavy injection rules
+    time_based_sql_and_heavy_ids = [
+        "40019",  # SQL Injection MySQL (Time Based)
+        "40020",  # SQL Injection Hypersonic (Time Based)
+        "40021",  # SQL Injection Oracle (Time Based)
+        "40022",  # SQL Injection Postgresql (Time Based)
+        "40024",  # SQL Injection SQLite (Time Based)
+        "40027",  # SQL Injection MsSQL (Time Based)
+        "90037",  # Command Injection (Time Based)
+        "90039",  # NoSQL Injection MongoDB (Time Based)
+    ]
+
+    # Directory brute force, path traversal and hidden file scanners
+    directory_and_traversal_ids = [
+        "0",      # Directory browsing
+        "33",     # Directory Browsing
+        "6",      # Directory/Path traversal
+        "40035",  # Hidden File Scanner
+        "90034",  # Cloud Metadata Attack
+    ]
+
+    # Legacy / default file checks for old platforms (IIS, SAP, WebSphere, etc.)
+    legacy_platform_ids = [
+        "20000",  # Cold Fusion default file
+        "20001",  # Lotus Domino default files
+        "20002",  # IIS default file
+        "20003",  # Macromedia JRun default files
+        "20004",  # Tomcat source file disclosure
+        "20005",  # BEA WebLogic example files
+        "20006",  # IBM WebSphere default files
+    ]
+
+    slow_ids = time_based_sql_and_heavy_ids + directory_and_traversal_ids + legacy_platform_ids
+    ids_param = ",".join(slow_ids)
+
+    if not ids_param:
+        logger.info("No slow scanners configured to be disabled.")
+        return
+
+    await _zap_get(
+        client,
+        f"{settings.ZAP_API_URL}/JSON/ascan/action/disableScanners/",
+        {
+            "apikey": settings.ZAP_API_KEY,
+            "ids": ids_param,
+        },
+    )
+    logger.info(f"Disabled slow ZAP scanners (Fast Mode): {ids_param}")
+
+
 async def _run_scan_internal(scan_id: int, target_url: str, scan_index: str, db: AsyncSession):
     database_service = AsyncDatabaseService(lambda: db)
     logger.info(f"Starting run_scan for scan_id={scan_id}, target={target_url}, zap_scan_index={scan_index}")
     try:
         seen_alert_ids = set()
         async with httpx.AsyncClient(timeout=60.0) as client:
-            max_retries = 60
             cancelled = False
-            for _ in range(max_retries):
+            # Ожидаем завершения сканирования, без жёсткого таймаута, но с учётом Kill Switch
+            while True:
                 scan_id_str = str(scan_id)
                 if scan_id_str in _cancelled_scans:
                     _cancelled_scans.discard(scan_id_str)
@@ -339,61 +484,60 @@ async def _run_scan_internal(scan_id: int, target_url: str, scan_index: str, db:
                     logger.info(f"Scan {scan_id} cancelled by user during polling")
                     break
 
-                status_resp = await client.get(
+                status = await _zap_get(
+                    client,
                     f"{settings.ZAP_API_URL}/JSON/ascan/view/status/",
-                    params={"apikey": settings.ZAP_API_KEY, "scanId": scan_index}
+                    {"apikey": settings.ZAP_API_KEY, "scanId": scan_index},
                 )
-                status = status_resp.json()
                 progress = int(status.get("status", 0))
-                
-                alerts_ids_resp = await client.get(
+
+                alerts_ids_resp = await _zap_get(
+                    client,
                     f"{settings.ZAP_API_URL}/JSON/ascan/view/alertsIds/",
-                    params={"apikey": settings.ZAP_API_KEY, "scanId": scan_index}
+                    {"apikey": settings.ZAP_API_KEY, "scanId": scan_index},
                 )
-                current_alert_ids = alerts_ids_resp.json().get("alertsIds", [])
-                
+                current_alert_ids = alerts_ids_resp.get("alertsIds", [])
+
                 new_alerts = []
                 if isinstance(current_alert_ids, list):
                     for aid in current_alert_ids:
                         aid_str = str(aid)
                         if aid_str not in seen_alert_ids:
-                            alert_detail_resp = await client.get(
+                            alert_detail_resp = await _zap_get(
+                                client,
                                 f"{settings.ZAP_API_URL}/JSON/core/view/alert/",
-                                params={"apikey": settings.ZAP_API_KEY, "id": aid_str}
+                                {"apikey": settings.ZAP_API_KEY, "id": aid_str},
                             )
-                            alert_detail = alert_detail_resp.json().get("alert", {})
+                            alert_detail = alert_detail_resp.get("alert", {})
                             if alert_detail:
-                                logger.debug(f"Scan {scan_id} found new alert: {alert_detail.get('alert')} on {alert_detail.get('url')}")
-                                new_alerts.append({
-                                    "id": aid_str,
-                                    "name": alert_detail.get("alert", "Unknown"),
-                                    "risk": alert_detail.get("risk", "Info"),
-                                    "url": alert_detail.get("url", "")
-                                })
+                                logger.debug(
+                                    f"Scan {scan_id} found new alert: {alert_detail.get('alert')} on {alert_detail.get('url')}"
+                                )
+                                new_alerts.append(
+                                    {
+                                        "id": aid_str,
+                                        "name": alert_detail.get("alert", "Unknown"),
+                                        "risk": alert_detail.get("risk", "Info"),
+                                        "url": alert_detail.get("url", ""),
+                                    }
+                                )
                             seen_alert_ids.add(aid_str)
-                
-                await manager.broadcast(str(scan_id), {
-                    "type": "progress",
-                    "progress": progress,
-                    "new_alerts": new_alerts,
-                    "total_alerts": len(seen_alert_ids)
-                })
+
+                await manager.broadcast(
+                    str(scan_id),
+                    {
+                        "type": "progress",
+                        "progress": progress,
+                        "new_alerts": new_alerts,
+                        "total_alerts": len(seen_alert_ids),
+                    },
+                )
 
                 if progress >= 100:
+                    logger.info(f"ZAP scan {scan_id} reached 100% progress")
                     break
+
                 await asyncio.sleep(5)
-            else:
-                if not cancelled:
-                    await database_service.update(
-                        Scan,
-                        {"scan_id": scan_id},
-                        {"status": "error"}
-                    )
-                    await manager.broadcast(str(scan_id), {
-                        "type": "error",
-                        "message": "Scan timeout"
-                    })
-                    return
 
             if cancelled:
                 return

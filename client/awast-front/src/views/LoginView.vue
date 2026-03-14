@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import loginImage from '../assets/img/login-left-side.jpeg'
-import logo from '../assets/img/logo.svg'
+import logo from '../assets/img/mini-logo.svg'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -35,9 +35,8 @@ async function signIn(){
 </script>
 
 <template>
-  <v-container fluid class="pa-0">
-    <v-row>
-      <v-col cols="12" md="8" class="left-side pb-0 pr-0">
+   <v-row>
+      <v-col cols="6" class="left-side pb-0 px-0">
         <v-img
             :src=loginImage
             alt="Login Image"
@@ -45,10 +44,10 @@ async function signIn(){
             min-height="100vh"
         ></v-img>
       </v-col>
-      <v-col cols="12" md="4" class="right-side d-flex align-center justify-center pl-0">
-        <v-card width="400" elevation="0">
+      <v-col cols="6"  class="right-side d-flex align-center justify-center pl-0">
+        <v-card width="400" elevation="0" color="transparent">
           <v-card-title class="text-h5 text-center">
-            <div class="d-flex justify-center">
+            <div class="d-flex justify-center bg-white logo-wrapper elevation-1">
               <v-img
                   :src=logo
                   alt="Login Image"
@@ -97,12 +96,18 @@ async function signIn(){
         </v-card>
       </v-col>
     </v-row>
-  </v-container>
 </template>
 
 <style scoped>
 .btn-text{
   color: var(--btn-text);
   text-transform: capitalize;
+}
+.logo-wrapper{
+  width: 200px;
+  height: 200px;
+  margin: 0 auto;
+  margin-bottom: 16px;
+  border-radius: 32px;
 }
 </style>

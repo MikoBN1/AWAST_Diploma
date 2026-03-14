@@ -146,6 +146,7 @@ const executeClearAll = async () => {
         :items="scanHistory"
         :search="search"
         :loading="isLoadingHistory"
+        :sort-by="[{ key: 'created_at', order: 'desc' }]"
         class="bg-transparent"
         hover
       >
