@@ -11,7 +11,7 @@ const { alerts } = storeToRefs(scanStore);
 
 interface Vulnerability {
   id: string
-  severity: 'critical' | 'high' | 'medium' | 'low'
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
   cveId: string
   title: string
   description: string
@@ -22,13 +22,14 @@ interface Vulnerability {
   payload: string
 }
 
-const mapRiskToSeverity = (risk?: string): 'critical' | 'high' | 'medium' | 'low' => {
+const mapRiskToSeverity = (risk?: string): 'critical' | 'high' | 'medium' | 'low' | 'info' => {
   if (!risk) return 'low';
   switch(risk.toLowerCase()) {
     case 'high': return 'high';
     case 'medium': return 'medium';
     case 'low': return 'low';
-    case 'informational': return 'low';
+    case 'informational':
+    case 'info': return 'info';
     default: return 'low';
   }
 };
@@ -61,6 +62,21 @@ const uniqueVulnerabilities = computed<Vulnerability[]>(() => {
   }
 
   return result;
+});
+
+// Severity order: high (critical) → medium → low → info
+const severityOrder: Record<string, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+  info: 4,
+};
+
+const sortedVulnerabilities = computed<Vulnerability[]>(() => {
+  return [...uniqueVulnerabilities.value].sort(
+    (a, b) => (severityOrder[a.severity] ?? 5) - (severityOrder[b.severity] ?? 5)
+  );
 });
 
 // AI Verify dialog state
@@ -149,6 +165,12 @@ const getSeverityConfig = (severity: string) => {
       gradient: 'linear-gradient(135deg, #6bcf7f 0%, #4facfe 100%)',
       color: '#6bcf7f',
       textColor: '#fff'
+    },
+    info: {
+      icon: 'mdi-information-outline',
+      gradient: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+      color: '#6366f1',
+      textColor: '#fff'
     }
   }
   return configs[severity as keyof typeof configs] || configs.low
@@ -171,7 +193,7 @@ const goToChainAnalysis = () => {
       </div>
       <div class="header-right">
         <v-btn
-          v-if="uniqueVulnerabilities.length > 0"
+          v-if="sortedVulnerabilities.length > 0"
           color="deep-purple"
           variant="elevated"
           class="chain-btn text-none font-weight-bold mr-4"
@@ -181,7 +203,7 @@ const goToChainAnalysis = () => {
           Discover Attack Chains
         </v-btn>
         <div class="stats-badge">
-          <span class="stats-number">{{ uniqueVulnerabilities.length }}</span>
+          <span class="stats-number">{{ sortedVulnerabilities.length }}</span>
           <span class="stats-label">Issues Found</span>
         </div>
       </div>
@@ -189,7 +211,7 @@ const goToChainAnalysis = () => {
 
     <div class="vulnerabilities-list">
       <div
-        v-for="vuln in uniqueVulnerabilities"
+        v-for="vuln in sortedVulnerabilities"
         :key="`${vuln.id}|${vuln.url}|${vuln.parameter}`"
         class="vuln-card"
         :class="{ 'expanded': expandedItems.has(`${vuln.id}|${vuln.url}|${vuln.parameter}`) }"
@@ -441,9 +463,14 @@ const goToChainAnalysis = () => {
   background: linear-gradient(135deg, #6bcf7f 0%, #4facfe 100%);
 }
 
+.severity-badge-info {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+}
+
 .severity-icon-critical,
 .severity-icon-high,
-.severity-icon-low {
+.severity-icon-low,
+.severity-icon-info {
   color: #fff;
 }
 
@@ -453,7 +480,8 @@ const goToChainAnalysis = () => {
 
 .severity-text-critical,
 .severity-text-high,
-.severity-text-low {
+.severity-text-low,
+.severity-text-info {
   color: #fff;
 }
 
@@ -623,6 +651,11 @@ const goToChainAnalysis = () => {
 
 .exploit-btn-low {
   background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%) !important;
+  color: #fff !important;
+}
+
+.exploit-btn-info {
+  background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%) !important;
   color: #fff !important;
 }
 

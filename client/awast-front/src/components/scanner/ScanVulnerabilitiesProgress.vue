@@ -6,27 +6,17 @@ import { storeToRefs } from 'pinia';
 const scanStore = useScanStore();
 const { alerts, totalAlertsFound } = storeToRefs(scanStore);
 
+// Same dedupe key as ScanVulnerabilitiyList: by CWE id (cveId), then CVE, else N/A
 const uniqueAlerts = computed(() => {
-  const seen = new Set<string>();
-  const result: any[] = [];
-
-  alerts.value.forEach((alert: any) => {
-    const cweid = (alert.cweid ?? '').toString().trim();
-    const cve = (alert.cve ?? '').toString().trim();
-
-    let key: string;
-    if (cweid) {
-      key = `CWE-${cweid}`;
-    } else if (cve) {
-      key = cve;
-    } else {
-      key = `${alert.alert || alert.name}|${alert.url}|${alert.param}`;
-    }
-
-    if (seen.has(key)) return;
-    seen.add(key);
-    result.push(alert);
-  });
+  const seenCwe = new Set<string>();
+  const result = [];
+  console.log(alerts.value);
+  for (const v of alerts.value) {
+    const key = v.cweid || 'N/A';
+    if (seenCwe.has(key)) continue;
+    seenCwe.add(key);
+    result.push(v);
+  }
 
   return result;
 });
@@ -35,11 +25,13 @@ const vulns = computed(() => {
   let high = 0;
   let medium = 0;
   let low = 0;
-
+  let info = 0;
+  console.log(uniqueAlerts.value);
   uniqueAlerts.value.forEach((alert: any) => {
     if (alert.risk === 'High') high++;
     else if (alert.risk === 'Medium') medium++;
     else if (alert.risk === 'Low') low++;
+    else if (alert.risk === 'Informational' || alert.risk === 'Info') info++;
   });
 
   return [
@@ -60,6 +52,12 @@ const vulns = computed(() => {
       value: low,
       color: "#10b981",
       gradient: "linear-gradient(90deg, #10b981 0%, #059669 100%)",
+    },
+    {
+      severity: "Info",
+      value: info,
+      color: "#6366f1",
+      gradient: "linear-gradient(90deg, #6366f1 0%, #4f46e5 100%)",
     },
   ];
 });
@@ -164,6 +162,10 @@ const scanType = ref("Full");
 
 .severity-low {
   background: #10b981;
+}
+
+.severity-info {
+  background: #6366f1;
 }
 
 .severity-label {

@@ -30,7 +30,7 @@ const buildCookiesObject = (): Record<string, string> | undefined => {
   const result: Record<string, string> = {};
   for (const pair of pairs) {
     const [key, ...rest] = pair.split('=');
-    const trimmedKey = key.trim();
+    const trimmedKey = key?.trim();
     if (!trimmedKey) continue;
     result[trimmedKey] = rest.join('=');
   }
