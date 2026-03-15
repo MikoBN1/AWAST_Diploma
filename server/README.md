@@ -26,6 +26,8 @@
 *   **Framework**: [FastAPI](https://fastapi.tiangolo.com/) (Python)
 *   **Database**: SQLAlchemy (Async)
 *   **Scanner Engine**: [OWASP ZAP](https://www.zaproxy.org/) (Dockerized)
+*   **XSS Detection**: [XSStrike](https://github.com/s0md3v/XSStrike) (Dockerized, API on port 5000)
+*   **SQL Injection**: [sqlmap](https://github.com/sqlmapproject/sqlmap) (Dockerized, API on port 8775)
 *   **Browser Automation**: Playwright
 *   **Deployment**: Docker & Docker Compose
 
@@ -57,46 +59,77 @@ DATABASE_URL=sqlite+aiosqlite:///./session.db # Or your DB connection string
 ZAP_API_KEY=changeme
 ZAP_API_URL=http://zap:8080 # Use 'http://localhost:8080' if running locally outside Docker
 
+# XSStrike (XSS scanner) – optional; used for XSS detection
+XSSTRIKE_API_URL=http://localhost:5000 # Use 'http://xsstrike:5000' when all services run in Docker
+
+# SQLMap (SQL injection) – optional; used for SQLi detection
+SQLMAP_API_URL=http://localhost:8775 # Use 'http://sqlmap:8775' when all services run in Docker
+
 # LLM Configuration (for AI Exploitation)
 OPENAI_API_KEY=your_api_key_here # Or other LLM provider keys
 ```
 
 ### 3. Run with Docker (Recommended)
 
-Start the entire stack (FastAPI server + ZAP) using Docker Compose:
+Start the entire stack (FastAPI server + ZAP + XSStrike + SQLMap) using Docker Compose:
 
 ```bash
 docker-compose up -d --build
 ```
 
 The server will be available at `http://localhost:8000` (or the port defined in your configuration).
-OWASP ZAP will be running on port `8080`.
+
+| Service   | Port | Description                    |
+|----------|------|--------------------------------|
+| OWASP ZAP| 8080 | Web app scanner                |
+| XSStrike | 5000 | XSS detection (wrapped API)    |
+| SQLMap   | 8775 | SQL injection (sqlmapapi)      |
 
 ### 4. Run Locally (Development)
 
-If you prefer to run the FastAPI server locally while keeping ZAP in Docker:
+If you prefer to run the FastAPI server locally while keeping ZAP, XSStrike, and SQLMap in Docker:
 
-1.  **Start ZAP**:
+1.  **Start ZAP** (required for spider/active scan):
     ```bash
     docker-compose up -d zap
     ```
     *Ensure `ZAP_API_URL` in `.env` is set to `http://localhost:8080`.*
 
-2.  **Create Virtual Environment**:
+2.  **Start XSStrike** (optional; for XSS detection in scans):
+    ```bash
+    docker-compose up -d xsstrike
+    ```
+    *Ensure `XSSTRIKE_API_URL` in `.env` is set to `http://localhost:5000`.*
+
+3.  **Start SQLMap** (optional; for SQL injection detection in scans):
+    ```bash
+    docker-compose up -d sqlmap
+    ```
+    *Ensure `SQLMAP_API_URL` in `.env` is set to `http://localhost:8775`.*
+
+4.  **Create Virtual Environment**:
     ```bash
     python -m venv venv
     source venv/bin/activate  # On Windows: venv\Scripts\activate
     ```
 
-3.  **Install Dependencies**:
+5.  **Install Dependencies**:
     ```bash
     pip install -r requirements.txt
     ```
 
-4.  **Run the Server**:
+6.  **Run the Server**:
     ```bash
     uvicorn app.main:app --reload
     ```
+
+### Starting XSStrike and SQLMap
+
+*   **With full stack** (recommended): `docker-compose up -d --build` starts ZAP, XSStrike, and SQLMap together. Use `XSSTRIKE_API_URL=http://xsstrike:5000` and `SQLMAP_API_URL=http://sqlmap:8775` when the app runs inside the same Docker network.
+*   **Individually** (e.g. for local dev): start only the tools you need:
+    *   **XSStrike**: `docker-compose up -d xsstrike` → API at `http://localhost:5000`
+    *   **SQLMap**: `docker-compose up -d sqlmap` → API at `http://localhost:8775`
+    Set `XSSTRIKE_API_URL=http://localhost:5000` and `SQLMAP_API_URL=http://localhost:8775` in `.env` when the server runs on the host.
 
 ## 📖 API Documentation
 
@@ -111,7 +144,13 @@ Once the server is running, you can access the interactive Swagger UI to explore
 *   **`POST /zap/scan`**: Start an Active Scan (Attack) on a target.
 *   **`POST /exploiter/run`**: specific vulnerability verification using AI payloads.
 *   **`POST /report/new`**: Generate a PDF report for a completed scan.
+*   **`POST /report/download`**: Download a generated report by `report_id`.
 *   **`GET /api/users/me`**: Get current user information.
+
+### Additional API docs
+
+*   **Report API (create & download PDF):** [docs/REPORT.md](docs/REPORT.md)
+*   **WebSocket (scan progress):** [docs/WEBSOCKET_API.md](docs/WEBSOCKET_API.md)
 
 ## 📂 Project Structure
 
