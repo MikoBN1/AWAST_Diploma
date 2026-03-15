@@ -1,0 +1,75 @@
+openapi: 3.0.0
+info:
+  title: Vulnerable Test API
+  description: API for testing security scanners. Contains common misconfigurations.
+  version: 1.0.0
+
+# ANTI-PATTERN 1: No global security requirement defined
+# (Allows endpoints to be public by default)
+
+paths:
+  /user/login:
+    get:
+      summary: Login via query params
+      operationId: loginUser
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string # ANTI-PATTERN 2: No pattern/length validation
+        - name: password
+          in: query
+          required: true
+          schema:
+            type: string # ANTI-PATTERN 3: Sensitive data in GET/Query string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /user/{id}:
+    get:
+      summary: Get user by ID
+      operationId: getUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer # ANTI-PATTERN 4: Predictable IDs (Insecure Direct Object Reference)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /admin/stats:
+    get:
+      summary: Internal stats
+      responses:
+        '200':
+          description: OK
+          # ANTI-PATTERN 5: No security scheme applied to sensitive admin path
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        password: 
+          type: string # ANTI-PATTERN 6: Sensitive data (PII/Secrets) returned in response body
+        role:
+          type: string
+          default: "user" # ANTI-PATTERN 7: Mass Assignment risk if used in POST/PUT
