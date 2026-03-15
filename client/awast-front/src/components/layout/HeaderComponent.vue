@@ -30,15 +30,6 @@ const handleLogout = () => {
 
     <template v-slot:append>
        <div class="d-flex align-center ga-5 pr-2">
-            <!--    User Account    -->
-            <div>
-              <router-link to="/profile">
-                <i
-                    class="bi bi-person-circle resize-icon"
-                    style="cursor: pointer;"
-                />
-              </router-link>
-            </div>
             <!--    Account Settings   -->
             <div>
               <i

@@ -65,6 +65,14 @@ const router = createRouter({
             name: 'admin_users',
             component: () => import('../views/AdminUsersView.vue'),
             meta: { hideHeader: false }
+        },
+        {
+            path: '/',
+            redirect: { name: 'dashboard' }
+        },
+        {
+            path: '/:pathMatch(.*)*',
+            redirect: { name: 'dashboard' }
         }
     ]
 })
