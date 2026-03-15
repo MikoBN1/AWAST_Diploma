@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useScanStore } from '@/stores/scanStore';
 import { storeToRefs } from 'pinia';
+import reportService from '@/services/reportService';
 
 const search = ref('');
 const router = useRouter();
@@ -17,6 +18,10 @@ const deleteError = ref<string | null>(null);
 const clearAllDialog = ref(false);
 const isClearing = ref(false);
 const clearError = ref<string | null>(null);
+
+const reportDownloadingId = ref<string | null>(null);
+const reportError = ref<string | null>(null);
+const reportSnackbar = ref({ show: false, text: '', color: 'success' as 'success' | 'error' });
 
 const headers = [
   { title: 'Status', key: 'status', sortable: true },
@@ -87,6 +92,32 @@ const executeClearAll = async () => {
     clearError.value = 'Failed to clear history. Please try again.';
   } finally {
     isClearing.value = false;
+  }
+};
+
+const generateAndDownloadReport = async (scanId: string) => {
+  reportDownloadingId.value = scanId;
+  reportError.value = null;
+  reportSnackbar.value.show = false;
+  try {
+    const data = await reportService.generateReport(scanId) as { report_id: string };
+    const reportId = data?.report_id;
+    if (!reportId) {
+      throw new Error('No report_id returned');
+    }
+    const blob = await reportService.downloadReport(reportId);
+    const url = URL.createObjectURL(blob as Blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `vulnerability_report_${scanId.slice(0, 8)}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+    reportSnackbar.value = { show: true, text: 'Report generated and downloaded.', color: 'success' };
+  } catch {
+    reportError.value = 'Failed to generate or download report. Please try again.';
+    reportSnackbar.value = { show: true, text: reportError.value, color: 'error' };
+  } finally {
+    reportDownloadingId.value = null;
   }
 };
 </script>
@@ -186,6 +217,16 @@ const executeClearAll = async () => {
 
         <!-- Actions Column -->
         <template v-slot:item.actions="{ item }">
+          <v-btn
+            icon="mdi-file-pdf-box"
+            variant="text"
+            size="small"
+            color="primary"
+            :loading="reportDownloadingId === item.scan_id"
+            :disabled="!!reportDownloadingId"
+            title="Generate and download report"
+            @click="generateAndDownloadReport(item.scan_id)"
+          ></v-btn>
           <v-btn icon="mdi-file-document-outline" variant="text" size="small" color="primary" @click="viewDetails(item.scan_id)"></v-btn>
           <v-btn icon="mdi-trash-can-outline" variant="text" size="small" color="error" @click="confirmDelete(item.scan_id)"></v-btn>
         </template>
@@ -246,6 +287,11 @@ const executeClearAll = async () => {
       </v-card-actions>
     </v-card>
   </v-dialog>
+
+  <!-- Report download snackbar -->
+  <v-snackbar v-model="reportSnackbar.show" :color="reportSnackbar.color" :timeout="reportSnackbar.color === 'error' ? 5000 : 3000" location="bottom right">
+    {{ reportSnackbar.text }}
+  </v-snackbar>
 </template>
 
 <style scoped>
