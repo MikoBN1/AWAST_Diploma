@@ -21,12 +21,34 @@ logger = logging.getLogger(__name__)
 
 _cancelled_scans: Set[str] = set()
 
-# ZAP Confidence mapping: 0=Low, 1=Medium, 2=High
-CONFIDENCE_MAP = {
-    "Low": "0",
-    "Medium": "1",
-    "High": "2",
-}
+
+def _dedupe_alerts_by_cwe(alerts: list[dict]) -> list[dict]:
+    """
+    Remove duplicates primarily by CWE (cweid/cve), falling back to
+    alert+url+param as a secondary key when CWE info is missing.
+    This keeps the first occurrence and drops the rest.
+    """
+    seen: set[str] = set()
+    result: list[dict] = []
+
+    for a in alerts:
+        cweid = str(a.get("cweid") or "").strip()
+        cve = (a.get("cve") or "").strip()
+
+        if cweid:
+            key = f"CWE-{cweid}"
+        elif cve:
+            key = cve
+        else:
+            key = f"{a.get('alert')}|{a.get('url')}|{a.get('param')}"
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        result.append(a)
+
+    return result
 
 # ---------------------------------------------------------------------------
 # Low-level helpers
@@ -50,10 +72,6 @@ async def _setup_zap_session(
     target_url: str,
     cookies: Optional[Dict[str, str]] = None,
 ) -> str:
-    """
-    Генерирует YAML-план для ZAP Automation Framework и возвращает локальный путь к файлу.
-    Всегда ставим кибербезопасность в первую очередь: конфигурация строго изолирована.
-    """
     has_cookies = bool(cookies)
     logger.info(f"Setting up ZAP plan for {target_url} (has_cookies={has_cookies})")
 
@@ -61,13 +79,12 @@ async def _setup_zap_session(
     if has_cookies:
         cookie_string = "; ".join(f"{k}={v}" for k, v in cookies.items())
 
-    # 1. Структура плана с обязательным Контекстом
     plan = {
         "env": {
             "contexts": [
                 {
                     "name": "AWAST_Context",
-                    "urls": [target_url], # Сканер должен знать, куда бить
+                    "urls": [target_url],
                 }
             ],
             "parameters": {"failOnError": True, "progressToStdout": True},
@@ -75,7 +92,6 @@ async def _setup_zap_session(
         "jobs": [],
     }
 
-    # 2. Инъекция сессии (если есть куки) через Replacer job по схеме AF.
     if cookie_string:
         plan["jobs"].append(
             {
@@ -97,7 +113,6 @@ async def _setup_zap_session(
             }
         )
 
-    # 3. Spider & Active Scan (полный режим без "fast mode"/ограничений).
     plan["jobs"].append(
         {
             "type": "spider",
@@ -110,12 +125,9 @@ async def _setup_zap_session(
     plan["jobs"].append(
         {
             "type": "activeScan",
-            # No per-rule time limits or disabled rules: let ZAP
-            # use its default/as-configured active scan policy.
         }
     )
 
-    # 4. Безопасное сохранение
     shared_dir = getattr(settings, "ZAP_AUTOMATION_SHARED_DIR", "C:\\zap\\wrk\\")
     
     try:
@@ -136,8 +148,6 @@ async def _setup_zap_session(
 
         logger.info(f"Secure ZAP Automation plan generated at {file_path}")
 
-        # Возвращаем полный локальный путь (Windows), чтобы вызывающий код
-        # мог безопасно извлечь только имя файла через os.path.basename.
         return file_path
 
     except Exception as e:
@@ -158,7 +168,6 @@ async def start_spider(
 ) -> dict:
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
-            # План сейчас генерируется только по целевому URL и кукам.
             await _setup_zap_session(target_url=target, cookies=cookies)
         except Exception as e:
             logger.warning("Failed to setup ZAP session for spider: %s", e)
@@ -204,40 +213,62 @@ async def start_scan(
     Configure ZAP via Automation Framework, run the plan, and track gracefully.
     """
     database_service = AsyncDatabaseService(lambda: db)
-    
-    # 1. Генерируем локальный YAML-план ZAP AF.
-    plan_path_local = await _setup_zap_session(target_url=target, cookies=cookies)
 
-    # 2. Защита от Path Traversal
-    safe_filename = os.path.basename(plan_path_local)
-    internal_dir = getattr(settings, "ZAP_AUTOMATION_INTERNAL_DIR", "/zap/wrk/")
-    internal_dir = internal_dir.rstrip("/") + "/"
-    zap_internal_path = f"{internal_dir}{safe_filename}"
+    has_cookies = bool(cookies)
+    # Decide which ZAP engine we will orchestrate:
+    # - with cookies: Automation Framework plan (runPlan/planProgress)
+    # - without cookies: direct Active Scan (ascan/scan + ascan/status)
+    scan_type = "automation" if has_cookies else "ascan"
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        data = await _zap_get(
-            client,
-            f"{settings.ZAP_API_URL}/JSON/automation/action/runPlan/",
-            {
-                "apikey": settings.ZAP_API_KEY,
-                "filePath": zap_internal_path,
-            },
-        )
+    if has_cookies:
+        plan_path_local = await _setup_zap_session(target_url=target, cookies=cookies)
 
-    # [ИСПРАВЛЕНИЕ]: Безопасный парсинг ответа ZAP. 
-    # Учитываем, что API может вернуть {"Result": "OK"} вместо ID.
-    plan_raw = data.get("planId") or data.get("runPlan")
-    if plan_raw is None:
-        if data.get("Result") == "OK":
-            plan_raw = "1"  # Дефолтный ID для первого плана
-        else:
+        safe_filename = os.path.basename(plan_path_local)
+        internal_dir = getattr(settings, "ZAP_AUTOMATION_INTERNAL_DIR", "/zap/wrk/")
+        internal_dir = internal_dir.rstrip("/") + "/"
+        zap_internal_path = f"{internal_dir}{safe_filename}"
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            data = await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/automation/action/runPlan/",
+                {
+                    "apikey": settings.ZAP_API_KEY,
+                    "filePath": zap_internal_path,
+                },
+            )
+
+        plan_raw = data.get("planId") or data.get("runPlan")
+        if plan_raw is None:
+            if data.get("Result") == "OK":
+                plan_raw = "1"  
+            else:
+                msg = data.get("message", str(data))
+                logger.error("ZAP runPlan failed for %s: %s", target, msg)
+                raise HTTPException(status_code=400, detail=f"ZAP API Error: {msg}")
+
+        runner_id = str(plan_raw)
+    else:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            data = await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/ascan/action/scan/",
+                {
+                    "apikey": settings.ZAP_API_KEY,
+                    "url": target,
+                },
+            )
+
+        scan_raw = data.get("scan")
+        if scan_raw is None:
             msg = data.get("message", str(data))
-            logger.error("ZAP runPlan failed for %s: %s", target, msg)
+            logger.error("ZAP ascan scan failed for %s: %s", target, msg)
             raise HTTPException(status_code=400, detail=f"ZAP API Error: {msg}")
 
-    plan_id = str(plan_raw)
+        runner_id = str(scan_raw)
+
     try:
-        zap_index_int = int(plan_id)
+        zap_index_int = int(runner_id)
     except ValueError:
         zap_index_int = 1
 
@@ -246,14 +277,20 @@ async def start_scan(
         created_at=datetime.utcnow(),
         zap_index=zap_index_int,
         user_id=user_id,
+        scan_type=scan_type,
     )
     created_scan = await database_service.create(scan_data)
-    logger.info("Started AF plan for target %s with plan_id=%s", target, plan_id)
+    logger.info(
+        "Started ZAP scan for target %s with runner_id=%s (has_cookies=%s)",
+        target,
+        runner_id,
+        has_cookies,
+    )
 
     return {
         "scan_id": created_scan.scan_id,
-        "scan_index": plan_id,
-        "zap_index": plan_id,
+        "scan_index": runner_id,
+        "zap_index": runner_id,
     }
 
 async def get_scan_status(scan_id: str) -> dict:
@@ -290,32 +327,32 @@ async def get_alerts_with_evidence(baseurl: str = None) -> dict:
             params,
         )
         alerts = data.get("alerts", [])
+        alerts = _dedupe_alerts_by_cwe(alerts)
 
         seen = set()
         unique_alerts = []
 
         for a in alerts:
             key = (a.get("alert"), a.get("url"), a.get("param"))
-            if key not in seen:
-                seen.add(key)
-                # Keep all alerts that have evidence, without applying a confidence threshold.
-                if a.get("evidence"):
-                    unique_alerts.append(
-                        {
-                            "alert": a.get("alert"),
-                            "risk": a.get("risk"),
-                            "confidence": a.get("confidence"),
-                            "url": a.get("url"),
-                            "param": a.get("param"),
-                            "evidence": a.get("evidence"),
-                            "solution": a.get("solution"),
-                            "reference": a.get("reference"),
-                            "tags": a.get("tags"),
-                            "cweid": a.get("cweid"),
-                        }
-                    )
+            if key in seen:
+                continue
+            seen.add(key)
+            if a.get("evidence"):
+                unique_alerts.append(
+                    {
+                        "alert": a.get("alert"),
+                        "risk": a.get("risk"),
+                        "confidence": a.get("confidence"),
+                        "url": a.get("url"),
+                        "param": a.get("param"),
+                        "evidence": a.get("evidence"),
+                        "solution": a.get("solution"),
+                        "reference": a.get("reference"),
+                        "tags": a.get("tags"),
+                        "cweid": a.get("cweid"),
+                    }
+                )
 
-        # Return all alerts that have evidence, regardless of confidence level.
         return {"count": len(unique_alerts), "alerts": unique_alerts}
 
 
@@ -406,10 +443,35 @@ async def _run_scan_internal(
     db: AsyncSession,
 ) -> None:
     """
-    Poll ZAP for scan progress safely, independent of specific sub-scanner IDs.
+    Poll ZAP for scan progress based on the configured scan_type.
     """
     database_service = AsyncDatabaseService(lambda: db)
-    logger.info("Tracking scan_id=%s, target=%s, plan_id=%s", scan_id, target_url, scan_index)
+
+    # Load the Scan record once to determine which ZAP engine we should poll.
+    scan = await database_service.get(Scan, scan_id=scan_id)
+    if not scan:
+        # Fail fast but avoid leaking sensitive details.
+        logger.error("Scan record not found for scan_id=%s", scan_id)
+        return
+
+    # Backwards compatibility: default to "ascan" if column is missing/NULL.
+    raw_scan_type = getattr(scan, "scan_type", None) or "ascan"
+    if raw_scan_type not in {"automation", "ascan"}:
+        logger.warning("Unknown scan_type '%s' for scan_id=%s, defaulting to 'ascan'", raw_scan_type, scan_id)
+        scan_type = "ascan"
+    else:
+        scan_type = raw_scan_type
+
+    # Normalize zap_index to a string identifier for ZAP APIs.
+    zap_runner_id = str(scan.zap_index if scan.zap_index is not None else scan_index)
+
+    logger.info(
+        "Tracking scan_id=%s, target=%s, zap_runner_id=%s, scan_type=%s",
+        scan_id,
+        target_url,
+        zap_runner_id,
+        scan_type,
+    )
 
     try:
         seen_alert_ids = set()
@@ -425,23 +487,39 @@ async def _run_scan_internal(
                     logger.info("Scan %s cancelled by user", scan_id)
                     break
 
-                # 1. Опрашиваем прогресс всего плана AF
-                try:
+                time_finished = None
+                progress = 0
+
+                # Automation Framework plan progress (когда скан запущен через runPlan)
+                if scan_type == "automation":
                     progress_resp = await _zap_get(
                         client,
                         f"{settings.ZAP_API_URL}/JSON/automation/view/planProgress/",
-                        {"apikey": settings.ZAP_API_KEY, "planId": scan_index},
+                        {
+                            "apikey": settings.ZAP_API_KEY,
+                            "planId": zap_runner_id,
+                        },
                     )
                     progress_data = progress_resp.get("planProgress", {}) or {}
-                except Exception as e:
-                    logger.warning("Could not fetch plan progress: %s", e)
-                    progress_data = {}
+                    time_finished = progress_data.get("timeFinished")
+                    progress = int(progress_data.get("percentComplete", 0))
 
-                time_finished = progress_data.get("timeFinished")
-                progress = int(progress_data.get("percentComplete", 0))
+                # Active Scan progress (когда скан запущен напрямую через ascan/action/scan)
+                if scan_type == "ascan":
+                    ascan_status = await _zap_get(
+                        client,
+                        f"{settings.ZAP_API_URL}/JSON/ascan/view/status/",
+                        {
+                            "apikey": settings.ZAP_API_KEY,
+                            "scanId": zap_runner_id,
+                        },
+                    )
+                    ascan_progress = int(ascan_status.get("status", 0))
+                    progress = ascan_progress
+                    if ascan_progress >= 100 and time_finished is None:
+                        # Для ascan нет timeFinished, но для логики достаточно статуса 100%.
+                        time_finished = "completed"
 
-                # [ИСПРАВЛЕНИЕ]: Получаем уязвимости напрямую из глобального ядра (core), 
-                # фильтруя их по целевому URL. Это защищает от рассинхрона ID сканеров.
                 alerts_resp = await _zap_get(
                     client,
                     f"{settings.ZAP_API_URL}/JSON/core/view/alerts/",
@@ -462,7 +540,6 @@ async def _run_scan_internal(
                         })
                         seen_alert_ids.add(aid_str)
 
-                # Транслируем данные на фронтенд
                 await manager.broadcast(
                     scan_id_str,
                     {
@@ -482,14 +559,12 @@ async def _run_scan_internal(
             if cancelled:
                 return
 
-            # Финальная обработка найденных уязвимостей
             resp = await client.get(
                 f"{settings.ZAP_API_URL}/JSON/core/view/alerts/",
                 params={"apikey": settings.ZAP_API_KEY, "baseurl": target_url},
             )
             data = resp.json()
-            # Use all reported alerts without filtering by confidence, to make the scan simple.
-            filtered_vulnerabilities = data.get("alerts", [])
+            filtered_vulnerabilities = _dedupe_alerts_by_cwe(data.get("alerts", []))
 
             alerts_data = []
 

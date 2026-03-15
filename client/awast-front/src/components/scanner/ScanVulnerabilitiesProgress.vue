@@ -6,12 +6,37 @@ import { storeToRefs } from 'pinia';
 const scanStore = useScanStore();
 const { alerts, totalAlertsFound } = storeToRefs(scanStore);
 
+const uniqueAlerts = computed(() => {
+  const seen = new Set<string>();
+  const result: any[] = [];
+
+  alerts.value.forEach((alert: any) => {
+    const cweid = (alert.cweid ?? '').toString().trim();
+    const cve = (alert.cve ?? '').toString().trim();
+
+    let key: string;
+    if (cweid) {
+      key = `CWE-${cweid}`;
+    } else if (cve) {
+      key = cve;
+    } else {
+      key = `${alert.alert || alert.name}|${alert.url}|${alert.param}`;
+    }
+
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.push(alert);
+  });
+
+  return result;
+});
+
 const vulns = computed(() => {
   let high = 0;
   let medium = 0;
   let low = 0;
 
-  alerts.value.forEach((alert: any) => {
+  uniqueAlerts.value.forEach((alert: any) => {
     if (alert.risk === 'High') high++;
     else if (alert.risk === 'Medium') medium++;
     else if (alert.risk === 'Low') low++;
@@ -66,7 +91,7 @@ const scanType = ref("Full");
             <span class="severity-value">{{ item.value }} found</span>
           </div>
           <v-progress-linear
-            :model-value="alerts.length > 0 ? (item.value / alerts.length) * 100 : 0"
+            :model-value="uniqueAlerts.length > 0 ? (item.value / uniqueAlerts.length) * 100 : 0"
             :color="item.color"
             height="8"
             rounded
@@ -85,7 +110,7 @@ const scanType = ref("Full");
               <div class="stat-icon-wrapper gradient-primary mb-3">
                 <v-icon icon="mdi-bug-outline" color="white" size="24"></v-icon>
               </div>
-              <div class="stat-value">{{ alerts.length }}</div>
+              <div class="stat-value">{{ uniqueAlerts.length }}</div>
               <div class="stat-label">Total Vulnerabilities</div>
             </div>
           </v-col>

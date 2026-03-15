@@ -6,10 +6,35 @@ import { storeToRefs } from 'pinia';
 const scanStore = useScanStore();
 const { scanProgress, alerts, targetUrl } = storeToRefs(scanStore);
 
+const uniqueAlerts = computed(() => {
+  const seen = new Set<string>();
+  const result: any[] = [];
+
+  alerts.value.forEach((alert: any) => {
+    const cweid = (alert.cweid ?? '').toString().trim();
+    const cve = (alert.cve ?? '').toString().trim();
+
+    let key: string;
+    if (cweid) {
+      key = `CWE-${cweid}`;
+    } else if (cve) {
+      key = cve;
+    } else {
+      key = `${alert.alert || alert.name}|${alert.url}|${alert.param}`;
+    }
+
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.push(alert);
+  });
+
+  return result;
+});
+
 const scanInfo = computed(() => [
   {
     title: "Vulnerabilities Found",
-    value: alerts.value.length.toString(),
+    value: uniqueAlerts.value.length.toString(),
     icon: "mdi-bug",
     color: "error",
     gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",

@@ -17,3 +17,8 @@ class Scan(Base):
     report_status = Column(String, nullable=False, default='none')
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False)
     zap_index = Column(Integer, nullable=False)
+    # Explicitly track which ZAP engine is orchestrating this scan.
+    # Allowed values:
+    # - "automation" – ZAP Automation Framework plan (runPlan/planProgress)
+    # - "ascan"      – classic Active Scan (ascan/scan + ascan/status)
+    scan_type = Column(String(16), nullable=False, default="ascan")

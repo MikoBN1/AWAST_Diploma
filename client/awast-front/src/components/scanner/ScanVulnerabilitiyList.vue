@@ -48,6 +48,21 @@ const vulnerabilities = computed<Vulnerability[]>(() => {
   }));
 });
 
+// Remove duplicates by CWE id (cveId)
+const uniqueVulnerabilities = computed<Vulnerability[]>(() => {
+  const seenCwe = new Set<string>();
+  const result: Vulnerability[] = [];
+
+  for (const v of vulnerabilities.value) {
+    const key = v.cveId || 'N/A';
+    if (seenCwe.has(key)) continue;
+    seenCwe.add(key);
+    result.push(v);
+  }
+
+  return result;
+});
+
 // AI Verify dialog state
 const exploitDialogOpen = ref(false);
 const selectedExploit = ref({ url: '', method: '', vulnType: '', param: '' });
@@ -101,11 +116,11 @@ const isExploitAllowed = (title: string): boolean => {
 
 const expandedItems = ref<Set<string>>(new Set())
 
-const toggleExpand = (id: string) => {
-  if (expandedItems.value.has(id)) {
-    expandedItems.value.delete(id)
+const toggleExpand = (key: string) => {
+  if (expandedItems.value.has(key)) {
+    expandedItems.value.delete(key)
   } else {
-    expandedItems.value.add(id)
+    expandedItems.value.add(key)
   }
 }
 
@@ -156,7 +171,7 @@ const goToChainAnalysis = () => {
       </div>
       <div class="header-right">
         <v-btn
-          v-if="vulnerabilities.length > 0"
+          v-if="uniqueVulnerabilities.length > 0"
           color="deep-purple"
           variant="elevated"
           class="chain-btn text-none font-weight-bold mr-4"
@@ -166,7 +181,7 @@ const goToChainAnalysis = () => {
           Discover Attack Chains
         </v-btn>
         <div class="stats-badge">
-          <span class="stats-number">{{ vulnerabilities.length }}</span>
+          <span class="stats-number">{{ uniqueVulnerabilities.length }}</span>
           <span class="stats-label">Issues Found</span>
         </div>
       </div>
@@ -174,10 +189,10 @@ const goToChainAnalysis = () => {
 
     <div class="vulnerabilities-list">
       <div
-        v-for="vuln in vulnerabilities"
-        :key="vuln.id"
+        v-for="vuln in uniqueVulnerabilities"
+        :key="`${vuln.id}|${vuln.url}|${vuln.parameter}`"
         class="vuln-card"
-        :class="{ 'expanded': expandedItems.has(vuln.id) }"
+        :class="{ 'expanded': expandedItems.has(`${vuln.id}|${vuln.url}|${vuln.parameter}`) }"
       >
         <!-- Severity Badge Overlay -->
         <div 
@@ -214,7 +229,7 @@ const goToChainAnalysis = () => {
           </div>
 
           <!-- Expandable Solution Section -->
-          <div v-if="expandedItems.has(vuln.id)" class="solution-section">
+          <div v-if="expandedItems.has(`${vuln.id}|${vuln.url}|${vuln.parameter}`)" class="solution-section">
               <div class="solution-header">
                 <v-icon size="18" color="#10b981">mdi-lightbulb-on</v-icon>
                 <span class="solution-label">Recommended Solution</span>
@@ -234,12 +249,12 @@ const goToChainAnalysis = () => {
                 size="small"
                 variant="text"
                 class="details-btn"
-                @click="toggleExpand(vuln.id)"
+                @click="toggleExpand(`${vuln.id}|${vuln.url}|${vuln.parameter}`)"
               >
                 <v-icon size="18" class="mr-1">
-                  {{ expandedItems.has(vuln.id) ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
+                  {{ expandedItems.has(`${vuln.id}|${vuln.url}|${vuln.parameter}`) ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
                 </v-icon>
-                {{ expandedItems.has(vuln.id) ? 'Less' : 'More' }} Details
+                {{ expandedItems.has(`${vuln.id}|${vuln.url}|${vuln.parameter}`) ? 'Less' : 'More' }} Details
               </v-btn>
               <v-btn
                 v-if="isExploitAllowed(vuln.title)"
