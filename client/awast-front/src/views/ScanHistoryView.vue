@@ -95,26 +95,40 @@ const executeClearAll = async () => {
   }
 };
 
-const generateAndDownloadReport = async (scanId: string) => {
+const reportStatus = (item: { report_status?: string }) => (item.report_status ?? 'none') as string;
+
+const downloadReport = async (item: { scan_id: string; report_id?: string }) => {
+  if (!item.report_id) return;
+  reportDownloadingId.value = item.scan_id;
+  reportError.value = null;
+  reportSnackbar.value.show = false;
+  try {
+    const blob = await reportService.downloadReport(String(item.report_id));
+    const url = URL.createObjectURL(blob as Blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `vulnerability_report_${item.scan_id.slice(0, 8)}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+    reportSnackbar.value = { show: true, text: 'Report downloaded.', color: 'success' };
+  } catch {
+    reportError.value = 'Failed to download report. Please try again.';
+    reportSnackbar.value = { show: true, text: reportError.value, color: 'error' };
+  } finally {
+    reportDownloadingId.value = null;
+  }
+};
+
+const generateReport = async (scanId: string) => {
   reportDownloadingId.value = scanId;
   reportError.value = null;
   reportSnackbar.value.show = false;
   try {
-    const data = await reportService.generateReport(scanId) as { report_id: string };
-    const reportId = data?.report_id;
-    if (!reportId) {
-      throw new Error('No report_id returned');
-    }
-    const blob = await reportService.downloadReport(reportId);
-    const url = URL.createObjectURL(blob as Blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `vulnerability_report_${scanId.slice(0, 8)}.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
-    reportSnackbar.value = { show: true, text: 'Report generated and downloaded.', color: 'success' };
+    await reportService.generateReport(scanId);
+    await scanStore.fetchScanHistory();
+    reportSnackbar.value = { show: true, text: 'Report generated successfully.', color: 'success' };
   } catch {
-    reportError.value = 'Failed to generate or download report. Please try again.';
+    reportError.value = 'Failed to generate report. Please try again.';
     reportSnackbar.value = { show: true, text: reportError.value, color: 'error' };
   } finally {
     reportDownloadingId.value = null;
@@ -217,15 +231,29 @@ const generateAndDownloadReport = async (scanId: string) => {
 
         <!-- Actions Column -->
         <template v-slot:item.actions="{ item }">
+          <!-- Download report when report_status is done -->
           <v-btn
-            icon="mdi-file-pdf-box"
+            v-if="reportStatus(item) === 'done' && item.report_id"
+            icon="mdi-download"
             variant="text"
             size="small"
             color="primary"
             :loading="reportDownloadingId === item.scan_id"
             :disabled="!!reportDownloadingId"
-            title="Generate and download report"
-            @click="generateAndDownloadReport(item.scan_id)"
+            title="Download report"
+            @click="downloadReport(item)"
+          ></v-btn>
+          <!-- Generate report when report_status is none, pending, or failed -->
+          <v-btn
+            v-else
+            icon="mdi-file-document-edit-outline"
+            variant="text"
+            size="small"
+            color="primary"
+            :loading="reportDownloadingId === item.scan_id"
+            :disabled="!!reportDownloadingId"
+            :title="reportStatus(item) === 'failed' ? 'Retry generate report' : 'Generate report'"
+            @click="generateReport(item.scan_id)"
           ></v-btn>
           <v-btn icon="mdi-file-document-outline" variant="text" size="small" color="primary" @click="viewDetails(item.scan_id)"></v-btn>
           <v-btn icon="mdi-trash-can-outline" variant="text" size="small" color="error" @click="confirmDelete(item.scan_id)"></v-btn>
