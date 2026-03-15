@@ -7,8 +7,6 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # [SECURITY FIRST: Жестко связываем абсолютный путь с диска C:]
-      # Теперь ZAP будет смотреть ровно туда, куда пишет твой Python
       - C:\zap\wrk:/zap/wrk:rw
     restart: unless-stopped
     deploy:
@@ -16,10 +14,37 @@ services:
         limits:
           cpus: '2.0'
           memory: 4g
-    # Явно прописываем команду запуска сканера в режиме демона
     command: >
       zap.sh -daemon 
       -host 0.0.0.0 
       -port 8080 
       -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true 
       -config api.key=changeme
+
+  xsstrike:
+    build:
+      context: ./xss_strike
+      dockerfile: Dockerfile
+    container_name: xsstrike
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1g
+
+  sqlmap:
+    build:
+      context: ./sqlmap
+      dockerfile: Dockerfile
+    container_name: sqlmap
+    ports:
+      - "8775:8775"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1g

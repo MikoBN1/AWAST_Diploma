@@ -4,6 +4,10 @@ class Settings(BaseSettings):
     ZAP_API_KEY: str = "changeme"
     ZAP_API_URL: str = "http://localhost:8080"
     ZAP_MIN_CONFIDENCE: str = "Medium"  # False positive reduction: Low, Medium, High
+
+    XSSTRIKE_API_URL: str = "http://localhost:5000"
+    SQLMAP_API_URL: str = "http://localhost:8775"
+
     DATABASE_URL: str
     GOOGLE_API_KEY: str = ""
     FRONTEND_URL: str = "http://localhost:5173"  # Default Vue.js local dev port

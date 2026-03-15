@@ -1,12 +1,10 @@
 import asyncio
+import json
 import logging
-import os
-import tempfile
 from datetime import datetime
 from typing import Dict, Optional, Set
 
 import httpx
-import yaml
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,11 +21,6 @@ _cancelled_scans: Set[str] = set()
 
 
 def _dedupe_alerts_by_cwe(alerts: list[dict]) -> list[dict]:
-    """
-    Remove duplicates primarily by CWE (cweid/cve), falling back to
-    alert+url+param as a secondary key when CWE info is missing.
-    This keeps the first occurrence and drops the rest.
-    """
     seen: set[str] = set()
     result: list[dict] = []
 
@@ -50,12 +43,12 @@ def _dedupe_alerts_by_cwe(alerts: list[dict]) -> list[dict]:
 
     return result
 
+
 # ---------------------------------------------------------------------------
 # Low-level helpers
 # ---------------------------------------------------------------------------
 
 async def _zap_get(client: httpx.AsyncClient, url: str, params: dict) -> dict:
-    """Wrapper around GET to ZAP that normalizes error handling."""
     resp = await client.get(url, params=params)
     try:
         resp.raise_for_status()
@@ -68,109 +61,134 @@ async def _zap_get(client: httpx.AsyncClient, url: str, params: dict) -> dict:
     return resp.json()
 
 
-async def _setup_zap_session(
-    target_url: str,
-    cookies: Optional[Dict[str, str]] = None,
-) -> str:
-    has_cookies = bool(cookies)
-    logger.info(f"Setting up ZAP plan for {target_url} (has_cookies={has_cookies})")
+# ---------------------------------------------------------------------------
+# XSSStrike helpers
+# ---------------------------------------------------------------------------
 
-    cookie_string = ""
-    if has_cookies:
-        cookie_string = "; ".join(f"{k}={v}" for k, v in cookies.items())
-
-    plan = {
-        "env": {
-            "contexts": [
-                {
-                    "name": "AWAST_Context",
-                    "urls": [target_url],
-                }
-            ],
-            "parameters": {"failOnError": True, "progressToStdout": True},
-        },
-        "jobs": [],
-    }
-
-    if cookie_string:
-        plan["jobs"].append(
-            {
-                "type": "replacer",
-                "name": "AWAST_AUTH_COOKIES",
-                "parameters": {
-                    "enabled": True,
-                },
-                "rules": [
-                    {
-                        "description": "AWAST_AUTH_COOKIES",
-                        "enabled": True,
-                        "matchType": "REQ_HEADER",
-                        "matchRegex": False,
-                        "matchString": "Cookie",
-                        "replacement": cookie_string,
-                    }
-                ],
-            }
-        )
-
-    plan["jobs"].append(
-        {
-            "type": "spider",
-            "parameters": {
-                "maxDepth": 0,
-            },
-        }
-    )
-
-    plan["jobs"].append(
-        {
-            "type": "activeScan",
-        }
-    )
-
-    shared_dir = getattr(settings, "ZAP_AUTOMATION_SHARED_DIR", "C:\\zap\\wrk\\")
-    
+async def _run_xsstrike_scan(target_url: str, cookie_string: str) -> list[dict]:
+    logger.info("Starting XSSStrike scan for %s", target_url)
     try:
-        os.makedirs(shared_dir, exist_ok=True)
-    except Exception as e:
-        logger.error(f"Failed to create ZAP Automation shared_dir '{shared_dir}': {e}")
-        raise HTTPException(status_code=500, detail="Configuration error.")
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=600.0)) as client:
+            resp = await client.post(
+                f"{settings.XSSTRIKE_API_URL}/scan",
+                json={"url": target_url, "cookies": cookie_string},
+            )
+            resp.raise_for_status()
+            task_id = resp.json()["task_id"]
+            logger.info("XSSStrike task created: %s", task_id)
 
-    try:
-        fd, file_path = tempfile.mkstemp(
-            suffix=".yaml",
-            prefix="zap_plan_",
-            dir=shared_dir,
-            text=True,
-        )
-        with os.fdopen(fd, "w") as f:
-            yaml.safe_dump(plan, f, default_flow_style=False, sort_keys=False)
+            while True:
+                await asyncio.sleep(5)
+                poll = await client.get(f"{settings.XSSTRIKE_API_URL}/scan/{task_id}")
+                result = poll.json()
+                status = result.get("status")
+                if status in ("completed", "error"):
+                    break
 
-        logger.info(f"Secure ZAP Automation plan generated at {file_path}")
+            if status == "error":
+                logger.error("XSSStrike error for %s: %s", target_url, result.get("error"))
+                return []
 
-        return file_path
+            vulns: list[dict] = []
+            for v in result.get("vulnerabilities", []):
+                vulns.append({
+                    "name": "Cross-Site Scripting (XSS)",
+                    "description": v.get("raw", json.dumps(v)),
+                    "risk": "High",
+                    "cweid": "79",
+                    "url": target_url,
+                    "method": "GET",
+                    "tags": {"source": "xsstrike"},
+                    "solution": "Sanitize all user input. Use Content-Security-Policy headers.",
+                    "references": ["https://owasp.org/www-community/attacks/xss/"],
+                    "parameter": v.get("parameter", ""),
+                    "payload": v.get("payload", str(v)),
+                    "request": "",
+                    "response": "",
+                })
+
+            logger.info("XSSStrike found %d vulnerabilities for %s", len(vulns), target_url)
+            return vulns
 
     except Exception as e:
-        logger.error(f"Failed to write ZAP config securely: {e}")
-        raise HTTPException(status_code=500, detail="Configuration error.")
+        logger.error("XSSStrike scan failed for %s: %s", target_url, e, exc_info=True)
+        return []
+
+
+# ---------------------------------------------------------------------------
+# SQLMap helpers
+# ---------------------------------------------------------------------------
+
+async def _run_sqlmap_scan(target_url: str, cookie_string: str) -> list[dict]:
+    logger.info("Starting SQLMap scan for %s", target_url)
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=600.0)) as client:
+            resp = await client.get(f"{settings.SQLMAP_API_URL}/task/new")
+            resp.raise_for_status()
+            task_id = resp.json()["taskid"]
+            logger.info("SQLMap task created: %s", task_id)
+
+            start_resp = await client.post(
+                f"{settings.SQLMAP_API_URL}/scan/{task_id}/start",
+                json={"url": target_url, "cookie": cookie_string},
+            )
+            start_resp.raise_for_status()
+
+            while True:
+                await asyncio.sleep(5)
+                poll = await client.get(f"{settings.SQLMAP_API_URL}/scan/{task_id}/status")
+                poll_data = poll.json()
+                if poll_data.get("status") == "terminated":
+                    break
+
+            data_resp = await client.get(f"{settings.SQLMAP_API_URL}/scan/{task_id}/data")
+            scan_data = data_resp.json()
+
+            vulns: list[dict] = []
+            for item in scan_data.get("data", []):
+                if item.get("status") == 1:
+                    for entry in item.get("value", []):
+                        place = entry.get("place", "GET")
+                        param = entry.get("parameter", "")
+                        title = entry.get("title", "SQL Injection")
+                        payload = entry.get("payload", "")
+                        dbms = entry.get("dbms", "")
+                        vulns.append({
+                            "name": f"SQL Injection — {title}",
+                            "description": (
+                                f"SQLMap detected injection in parameter '{param}' "
+                                f"({place}). DBMS: {dbms or 'unknown'}."
+                            ),
+                            "risk": "High",
+                            "cweid": "89",
+                            "url": target_url,
+                            "method": place,
+                            "tags": {"source": "sqlmap", "dbms": dbms},
+                            "solution": (
+                                "Use parameterized queries / prepared statements. "
+                                "Never concatenate user input into SQL."
+                            ),
+                            "references": ["https://owasp.org/www-community/attacks/SQL_Injection"],
+                            "parameter": param,
+                            "payload": payload,
+                            "request": "",
+                            "response": "",
+                        })
+
+            logger.info("SQLMap found %d vulnerabilities for %s", len(vulns), target_url)
+            return vulns
+
+    except Exception as e:
+        logger.error("SQLMap scan failed for %s: %s", target_url, e, exc_info=True)
+        return []
 
 
 # ---------------------------------------------------------------------------
 # Public ZAP spider helpers
 # ---------------------------------------------------------------------------
 
-async def start_spider(
-    target: str,
-    cookies: Optional[Dict[str, str]] = None,
-    login_url: Optional[str] = None,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-) -> dict:
+async def start_spider(target: str) -> dict:
     async with httpx.AsyncClient(timeout=60.0) as client:
-        try:
-            await _setup_zap_session(target_url=target, cookies=cookies)
-        except Exception as e:
-            logger.warning("Failed to setup ZAP session for spider: %s", e)
         return await _zap_get(
             client,
             f"{settings.ZAP_API_URL}/JSON/spider/action/scan/",
@@ -205,67 +223,23 @@ async def start_scan(
     user_id: str,
     db: AsyncSession,
     cookies: Optional[Dict[str, str]] = None,
-    login_url: Optional[str] = None,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
 ) -> dict:
-    """
-    Configure ZAP via Automation Framework, run the plan, and track gracefully.
-    """
     database_service = AsyncDatabaseService(lambda: db)
 
-    has_cookies = bool(cookies)
-    # Decide which ZAP engine we will orchestrate:
-    # - with cookies: Automation Framework plan (runPlan/planProgress)
-    # - without cookies: direct Active Scan (ascan/scan + ascan/status)
-    scan_type = "automation" if has_cookies else "ascan"
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        data = await _zap_get(
+            client,
+            f"{settings.ZAP_API_URL}/JSON/ascan/action/scan/",
+            {"apikey": settings.ZAP_API_KEY, "url": target},
+        )
 
-    if has_cookies:
-        plan_path_local = await _setup_zap_session(target_url=target, cookies=cookies)
+    scan_raw = data.get("scan")
+    if scan_raw is None:
+        msg = data.get("message", str(data))
+        logger.error("ZAP ascan failed for %s: %s", target, msg)
+        raise HTTPException(status_code=400, detail=f"ZAP API Error: {msg}")
 
-        safe_filename = os.path.basename(plan_path_local)
-        internal_dir = getattr(settings, "ZAP_AUTOMATION_INTERNAL_DIR", "/zap/wrk/")
-        internal_dir = internal_dir.rstrip("/") + "/"
-        zap_internal_path = f"{internal_dir}{safe_filename}"
-
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            data = await _zap_get(
-                client,
-                f"{settings.ZAP_API_URL}/JSON/automation/action/runPlan/",
-                {
-                    "apikey": settings.ZAP_API_KEY,
-                    "filePath": zap_internal_path,
-                },
-            )
-
-        plan_raw = data.get("planId") or data.get("runPlan")
-        if plan_raw is None:
-            if data.get("Result") == "OK":
-                plan_raw = "1"  
-            else:
-                msg = data.get("message", str(data))
-                logger.error("ZAP runPlan failed for %s: %s", target, msg)
-                raise HTTPException(status_code=400, detail=f"ZAP API Error: {msg}")
-
-        runner_id = str(plan_raw)
-    else:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            data = await _zap_get(
-                client,
-                f"{settings.ZAP_API_URL}/JSON/ascan/action/scan/",
-                {
-                    "apikey": settings.ZAP_API_KEY,
-                    "url": target,
-                },
-            )
-
-        scan_raw = data.get("scan")
-        if scan_raw is None:
-            msg = data.get("message", str(data))
-            logger.error("ZAP ascan scan failed for %s: %s", target, msg)
-            raise HTTPException(status_code=400, detail=f"ZAP API Error: {msg}")
-
-        runner_id = str(scan_raw)
+    runner_id = str(scan_raw)
 
     try:
         zap_index_int = int(runner_id)
@@ -277,14 +251,14 @@ async def start_scan(
         created_at=datetime.utcnow(),
         zap_index=zap_index_int,
         user_id=user_id,
-        scan_type=scan_type,
+        scan_type="ascan",
     )
     created_scan = await database_service.create(scan_data)
+
+    has_cookies = bool(cookies)
     logger.info(
-        "Started ZAP scan for target %s with runner_id=%s (has_cookies=%s)",
-        target,
-        runner_id,
-        has_cookies,
+        "Started scan for %s — ZAP runner_id=%s, auth_tools=%s",
+        target, runner_id, has_cookies,
     )
 
     return {
@@ -293,12 +267,13 @@ async def start_scan(
         "zap_index": runner_id,
     }
 
+
 async def get_scan_status(scan_id: str) -> dict:
     async with httpx.AsyncClient(timeout=60.0) as client:
         return await _zap_get(
             client,
-            f"{settings.ZAP_API_URL}/JSON/automation/view/planProgress/",
-            {"apikey": settings.ZAP_API_KEY, "planId": scan_id},
+            f"{settings.ZAP_API_URL}/JSON/ascan/view/status/",
+            {"apikey": settings.ZAP_API_KEY, "scanId": scan_id},
         )
 
 
@@ -387,8 +362,6 @@ async def abort_scan(scan_id: str) -> dict:
         if not scan:
             raise HTTPException(status_code=404, detail="Scan not found")
 
-        zap_index = str(scan.zap_index)
-
     _cancelled_scans.add(str(scan_id))
 
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -429,11 +402,16 @@ async def abort_scan(scan_id: str) -> dict:
     return {"status": "stopped", "scan_id": str(scan_id)}
 
 
-async def run_scan(scan_id: int, target_url: str, scan_index: str):
+async def run_scan(
+    scan_id: int,
+    target_url: str,
+    scan_index: str,
+    cookies: Optional[Dict[str, str]] = None,
+):
     from core.database import async_session
 
     async with async_session() as db:
-        await _run_scan_internal(scan_id, target_url, scan_index, db)
+        await _run_scan_internal(scan_id, target_url, scan_index, db, cookies)
 
 
 async def _run_scan_internal(
@@ -441,40 +419,39 @@ async def _run_scan_internal(
     target_url: str,
     scan_index: str,
     db: AsyncSession,
+    cookies: Optional[Dict[str, str]] = None,
 ) -> None:
-    """
-    Poll ZAP for scan progress based on the configured scan_type.
-    """
     database_service = AsyncDatabaseService(lambda: db)
 
-    # Load the Scan record once to determine which ZAP engine we should poll.
     scan = await database_service.get(Scan, scan_id=scan_id)
     if not scan:
-        # Fail fast but avoid leaking sensitive details.
         logger.error("Scan record not found for scan_id=%s", scan_id)
         return
 
-    # Backwards compatibility: default to "ascan" if column is missing/NULL.
-    raw_scan_type = getattr(scan, "scan_type", None) or "ascan"
-    if raw_scan_type not in {"automation", "ascan"}:
-        logger.warning("Unknown scan_type '%s' for scan_id=%s, defaulting to 'ascan'", raw_scan_type, scan_id)
-        scan_type = "ascan"
-    else:
-        scan_type = raw_scan_type
-
-    # Normalize zap_index to a string identifier for ZAP APIs.
     zap_runner_id = str(scan.zap_index if scan.zap_index is not None else scan_index)
+    has_cookies = bool(cookies)
+    cookie_string = ""
+    if has_cookies:
+        cookie_string = "; ".join(f"{k}={v}" for k, v in cookies.items())
 
     logger.info(
-        "Tracking scan_id=%s, target=%s, zap_runner_id=%s, scan_type=%s",
-        scan_id,
-        target_url,
-        zap_runner_id,
-        scan_type,
+        "Tracking scan_id=%s, target=%s, zap_runner_id=%s, auth_tools=%s",
+        scan_id, target_url, zap_runner_id, has_cookies,
     )
 
+    xsstrike_task = None
+    sqlmap_task = None
+
     try:
-        seen_alert_ids = set()
+        seen_alert_ids: set = set()
+
+        if has_cookies:
+            xsstrike_task = asyncio.create_task(
+                _run_xsstrike_scan(target_url, cookie_string)
+            )
+            sqlmap_task = asyncio.create_task(
+                _run_sqlmap_scan(target_url, cookie_string)
+            )
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             cancelled = False
@@ -487,48 +464,33 @@ async def _run_scan_internal(
                     logger.info("Scan %s cancelled by user", scan_id)
                     break
 
-                time_finished = None
-                progress = 0
+                ascan_status = await _zap_get(
+                    client,
+                    f"{settings.ZAP_API_URL}/JSON/ascan/view/status/",
+                    {"apikey": settings.ZAP_API_KEY, "scanId": zap_runner_id},
+                )
+                zap_progress = int(ascan_status.get("status", 0))
 
-                # Automation Framework plan progress (когда скан запущен через runPlan)
-                if scan_type == "automation":
-                    progress_resp = await _zap_get(
-                        client,
-                        f"{settings.ZAP_API_URL}/JSON/automation/view/planProgress/",
-                        {
-                            "apikey": settings.ZAP_API_KEY,
-                            "planId": zap_runner_id,
-                        },
-                    )
-                    progress_data = progress_resp.get("planProgress", {}) or {}
-                    time_finished = progress_data.get("timeFinished")
-                    progress = int(progress_data.get("percentComplete", 0))
+                xss_done = xsstrike_task.done() if xsstrike_task else True
+                sql_done = sqlmap_task.done() if sqlmap_task else True
 
-                # Active Scan progress (когда скан запущен напрямую через ascan/action/scan)
-                if scan_type == "ascan":
-                    ascan_status = await _zap_get(
-                        client,
-                        f"{settings.ZAP_API_URL}/JSON/ascan/view/status/",
-                        {
-                            "apikey": settings.ZAP_API_KEY,
-                            "scanId": zap_runner_id,
-                        },
+                if has_cookies:
+                    combined = (
+                        int(zap_progress * 0.5)
+                        + (25 if xss_done else 0)
+                        + (25 if sql_done else 0)
                     )
-                    ascan_progress = int(ascan_status.get("status", 0))
-                    progress = ascan_progress
-                    if ascan_progress >= 100 and time_finished is None:
-                        # Для ascan нет timeFinished, но для логики достаточно статуса 100%.
-                        time_finished = "completed"
+                else:
+                    combined = zap_progress
 
                 alerts_resp = await _zap_get(
                     client,
                     f"{settings.ZAP_API_URL}/JSON/core/view/alerts/",
                     {"apikey": settings.ZAP_API_KEY, "baseurl": target_url},
                 )
-                
                 current_alerts = alerts_resp.get("alerts", [])
                 new_alerts = []
-                
+
                 for alert in current_alerts:
                     aid_str = str(alert.get("id", alert.get("alertId", "")))
                     if aid_str and aid_str not in seen_alert_ids:
@@ -544,21 +506,27 @@ async def _run_scan_internal(
                     scan_id_str,
                     {
                         "type": "progress",
-                        "progress": progress,
+                        "progress": combined,
                         "new_alerts": new_alerts,
                         "total_alerts": len(seen_alert_ids),
                     },
                 )
 
-                if time_finished:
-                    logger.info("ZAP Automation plan %s finished at %s", scan_index, time_finished)
+                zap_finished = zap_progress >= 100
+                all_done = zap_finished and xss_done and sql_done
+                if all_done:
                     break
 
                 await asyncio.sleep(5)
 
             if cancelled:
+                if xsstrike_task:
+                    xsstrike_task.cancel()
+                if sqlmap_task:
+                    sqlmap_task.cancel()
                 return
 
+            # ---- Collect ZAP results ----
             resp = await client.get(
                 f"{settings.ZAP_API_URL}/JSON/core/view/alerts/",
                 params={"apikey": settings.ZAP_API_KEY, "baseurl": target_url},
@@ -587,8 +555,16 @@ async def _run_scan_internal(
                                 },
                             )
                             msg_data = msg_resp.json().get("message", {})
-                            request_text = msg_data.get("requestHeader", "") + "\n\n" + msg_data.get("requestBody", "")
-                            response_text = msg_data.get("responseHeader", "") + "\n\n" + msg_data.get("responseBody", "")
+                            request_text = (
+                                msg_data.get("requestHeader", "")
+                                + "\n\n"
+                                + msg_data.get("requestBody", "")
+                            )
+                            response_text = (
+                                msg_data.get("responseHeader", "")
+                                + "\n\n"
+                                + msg_data.get("responseBody", "")
+                            )
                         except Exception as e:
                             logger.error("Failed to fetch ZAP message ID %s: %s", message_id, e)
 
@@ -605,8 +581,34 @@ async def _run_scan_internal(
                     )
                     alerts_data.append(vuln_data)
                 except Exception as ex:
-                    logger.error("Error processing vulnerability row: %s", ex, exc_info=True)
+                    logger.error("Error processing ZAP vulnerability: %s", ex, exc_info=True)
 
+            # ---- Collect XSSStrike + SQLMap results ----
+            xsstrike_vulns: list[dict] = []
+            sqlmap_vulns: list[dict] = []
+
+            if xsstrike_task:
+                try:
+                    xsstrike_vulns = await xsstrike_task
+                except Exception as e:
+                    logger.error("XSSStrike task failed: %s", e)
+
+            if sqlmap_task:
+                try:
+                    sqlmap_vulns = await sqlmap_task
+                except Exception as e:
+                    logger.error("SQLMap task failed: %s", e)
+
+            for vuln_data in xsstrike_vulns + sqlmap_vulns:
+                try:
+                    await database_service.create(
+                        Vulnerability(**vuln_data, scan_id=scan_id)
+                    )
+                    alerts_data.append(vuln_data)
+                except Exception as ex:
+                    logger.error("Error saving tool vulnerability: %s", ex, exc_info=True)
+
+            # ---- Finalize ----
             await database_service.update(
                 Scan,
                 {"scan_id": scan_id},
@@ -623,9 +625,18 @@ async def _run_scan_internal(
                     "alerts": alerts_data,
                 },
             )
-            logger.info("Scan %s completed successfully. Found %s vulnerabilities.", scan_id, len(alerts_data))
+            logger.info(
+                "Scan %s completed. Found %d vulnerabilities (ZAP: %d, XSSStrike: %d, SQLMap: %d).",
+                scan_id, len(alerts_data),
+                len(alerts_data) - len(xsstrike_vulns) - len(sqlmap_vulns),
+                len(xsstrike_vulns), len(sqlmap_vulns),
+            )
 
     except Exception as e:
+        if xsstrike_task:
+            xsstrike_task.cancel()
+        if sqlmap_task:
+            sqlmap_task.cancel()
         await database_service.update(
             Scan,
             {"scan_id": scan_id},

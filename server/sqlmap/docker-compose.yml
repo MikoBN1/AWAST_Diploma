@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  sqlmap:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sqlmap
+    ports:
+      - "8775:8775"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1g

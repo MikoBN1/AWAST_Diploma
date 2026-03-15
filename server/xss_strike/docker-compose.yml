@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  xsstrike:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: xsstrike
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1g

@@ -102,8 +102,8 @@ const isExploitAllowed = (title: string): boolean => {
   if (allowedExploits.has(title)) return true;
   const lower = title.toLowerCase();
   return (
-    lower.includes('cross site scripting') ||
-    lower.includes(' xss') ||
+    lower.replace(/[-]/g, ' ').includes('cross site scripting') ||
+    lower.includes('xss') || // <— change from ' xss' to 'xss'
     (lower.includes('sql') && lower.includes('inject')) ||
     lower.includes('command inject') ||
     lower.includes('path traversal') ||
