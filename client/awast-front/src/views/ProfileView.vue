@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/stores/authStore';
 import { storeToRefs } from 'pinia';
-import { onMounted, computed } from 'vue';
+import { onMounted, computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useScanStore } from '@/stores/scanStore';
 
@@ -117,10 +117,12 @@ interface ActivityItem {
   time: string;
 }
 
-const activityLogItems = computed<ActivityItem[]>(() => {
+const ACTIVITY_PAGE_SIZE = 5;
+const activityLogPage = ref(1);
+
+const activityLogItemsAll = computed<ActivityItem[]>(() => {
   const list = scanHistory.value ?? [];
-  const recent = list.slice(0, 10);
-  if (recent.length === 0) {
+  if (list.length === 0) {
     return [{
       type: 'info',
       title: 'No activity yet',
@@ -128,7 +130,7 @@ const activityLogItems = computed<ActivityItem[]>(() => {
       time: '—',
     }];
   }
-  return recent.map((scan: { scan_id: string; target: string; created_at: string; status: string }) => {
+  return list.map((scan: { scan_id: string; target: string; created_at: string; status: string }) => {
     const status = scan.status ?? '';
     const isError = status === 'error' || status === 'stopped';
     const title = status === 'done'
@@ -155,6 +157,23 @@ const activityLogItems = computed<ActivityItem[]>(() => {
       time: formatRelativeTime(scan.created_at ?? new Date().toISOString()),
     };
   });
+});
+
+const activityLogTotalPages = computed(() =>
+  Math.max(1, Math.ceil(activityLogItemsAll.value.length / ACTIVITY_PAGE_SIZE))
+);
+
+watch(activityLogTotalPages, (total) => {
+  if (activityLogPage.value > total) activityLogPage.value = 1;
+});
+
+const paginatedActivityItems = computed<ActivityItem[]>(() => {
+  const all = activityLogItemsAll.value;
+  if (all.length === 0 || all[0]?.title === 'No activity yet') return all;
+  const totalPages = activityLogTotalPages.value;
+  const page = Math.min(Math.max(1, activityLogPage.value), totalPages);
+  const start = (page - 1) * ACTIVITY_PAGE_SIZE;
+  return all.slice(start, start + ACTIVITY_PAGE_SIZE);
 });
 
 const exportReport = () => {
@@ -292,18 +311,10 @@ const getFullAIAnalysis = () => {
           <v-card class="pa-5 custom-card" rounded="xl" elevation="0">
             <div class="d-flex justify-space-between align-center mb-5">
               <h3 class="text-subtitle-1 font-weight-bold mb-0">Activity Log</h3>
-              <div class="d-flex gap-2">
-                <v-btn icon variant="tonal" size="small" color="primary">
-                  <v-icon icon="mdi-filter-outline" size="20"></v-icon>
-                </v-btn>
-                <v-btn icon variant="tonal" size="small" color="primary">
-                  <v-icon icon="mdi-refresh" size="20"></v-icon>
-                </v-btn>
-              </div>
             </div>
             <div class="activity-list">
               <div
-                v-for="(item, i) in activityLogItems"
+                v-for="(item, i) in paginatedActivityItems"
                 :key="i"
                 class="activity-item d-flex align-start mb-5"
               >
@@ -316,9 +327,9 @@ const getFullAIAnalysis = () => {
                 ></v-icon>
                 <v-icon
                   v-else
-                  icon="mdi-circle-outline"
+                  icon="mdi-circle"
                   size="10"
-                  color="primary"
+                  color="success"
                   class="mt-1 mr-3"
                 ></v-icon>
                 <div class="flex-grow-1">
@@ -341,6 +352,15 @@ const getFullAIAnalysis = () => {
                 </div>
               </div>
             </div>
+            <v-pagination
+              v-if="activityLogTotalPages > 1"
+              v-model="activityLogPage"
+              :length="activityLogTotalPages"
+              :total-visible="5"
+              density="comfortable"
+              class="mt-4"
+              rounded
+            ></v-pagination>
           </v-card>
         </v-col>
 
