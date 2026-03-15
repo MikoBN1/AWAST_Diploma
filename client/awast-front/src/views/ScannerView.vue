@@ -17,25 +17,24 @@ const targetUrl = ref('');
 const errorMsg = ref('');
 const spiderPollInterval = ref<ReturnType<typeof setInterval> | null>(null);
 
-// Cookies key-value editor
-interface CookieEntry {
-  key: string;
-  value: string;
-}
-const cookieEntries = ref<CookieEntry[]>([]);
-
-const addCookieEntry = () => {
-  cookieEntries.value.push({ key: '', value: '' });
-};
-
-const removeCookieEntry = (index: number) => {
-  cookieEntries.value.splice(index, 1);
-};
+// Raw cookie header input (e.g. "a=1; b=2")
+const rawCookieHeader = ref('');
 
 const buildCookiesObject = (): Record<string, string> | undefined => {
-  const entries = cookieEntries.value.filter(e => e.key.trim() !== '');
-  if (entries.length === 0) return undefined;
-  return Object.fromEntries(entries.map(e => [e.key.trim(), e.value]));
+  const header = rawCookieHeader.value.trim();
+  if (!header) return undefined;
+
+  const pairs = header.split(';').map(p => p.trim()).filter(Boolean);
+  if (pairs.length === 0) return undefined;
+
+  const result: Record<string, string> = {};
+  for (const pair of pairs) {
+    const [key, ...rest] = pair.split('=');
+    const trimmedKey = key.trim();
+    if (!trimmedKey) continue;
+    result[trimmedKey] = rest.join('=');
+  }
+  return Object.keys(result).length ? result : undefined;
 };
 const successMsg = ref('');
 const scanPhase = ref(''); // 'spider' | 'scan' | ''
@@ -300,46 +299,19 @@ watch(
               <!-- Cookies Editor Section -->
               <v-expand-transition>
                 <div v-if="model" class="credentials-section">
-                  <div v-for="(entry, index) in cookieEntries" :key="index" class="d-flex align-center mb-3">
-                    <v-text-field
-                      v-model="entry.key"
-                      density="comfortable"
-                      placeholder="e.g. PHPSESSID"
-                      label="Cookie Name"
-                      prepend-inner-icon="mdi-key-variant"
-                      variant="outlined"
-                      color="primary"
-                      bg-color="white"
-                      class="modern-input mr-3"
-                      hide-details
-                      :disabled="isStartingScan"
-                    ></v-text-field>
-                    <v-text-field
-                      v-model="entry.value"
-                      density="comfortable"
-                      placeholder="Cookie value"
-                      label="Cookie Value"
-                      prepend-inner-icon="mdi-text-short"
-                      variant="outlined"
-                      color="primary"
-                      bg-color="white"
-                      class="modern-input mr-3"
-                      hide-details
-                      :disabled="isStartingScan"
-                    ></v-text-field>
-                    <v-btn icon="mdi-close" size="small" variant="text" color="red" @click="removeCookieEntry(index)"></v-btn>
-                  </div>
-                  <v-btn
-                    variant="tonal"
+                  <v-text-field
+                    v-model="rawCookieHeader"
+                    density="comfortable"
+                    label="Cookie Header"
+                    placeholder="security=low; security_level=0; PHPSESSID=ccphfjj0fm2as14uorvu9dejm2; acopendivids=swingset,jotto,phpbb2,redmine; acgroupswithpersist=nada"
+                    prepend-inner-icon="mdi-cookie"
+                    variant="outlined"
                     color="primary"
-                    size="small"
-                    prepend-icon="mdi-plus"
-                    class="text-none"
-                    @click="addCookieEntry"
+                    bg-color="white"
+                    class="modern-input"
+                    hide-details
                     :disabled="isStartingScan"
-                  >
-                    Add Cookie
-                  </v-btn>
+                  ></v-text-field>
                 </div>
               </v-expand-transition>
 
