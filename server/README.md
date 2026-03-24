@@ -169,3 +169,24 @@ server/
 ├── Dockerfile          # Server Dockerfile
 └── requirements.txt    # Python dependencies
 ```
+## 🏗️ Architecture Diagram
+
+```mermaid
+flowchart LR
+    U[User / Analyst] --> FE[Frontend\nVue 3 + TypeScript + Vite]
+    FE --> API[AWAST Backend API\nFastAPI + Uvicorn]
+
+    API --> DB[(Database\nSQLAlchemy Async)]
+    API --> WS[WebSocket Manager\nRealtime scan updates]
+    WS --> FE
+
+    API --> ZAP[OWASP ZAP\nSpider + Active Scan]
+    API --> XS[XSStrike Service\nXSS verification]
+    API --> SM[SQLMap Service\nSQLi verification]
+
+    API --> EXP[Exploiter Service\nAutomated exploitation]
+    EXP --> LLM[LLM Service\nGemini API]
+    EXP --> BR[Browser Validation\nSelenium headless]
+
+    API --> REP[Report Service\nPDF generation via ReportLab]
+    REP --> PDF[(PDF Reports)]
