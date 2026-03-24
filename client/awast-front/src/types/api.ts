@@ -72,6 +72,9 @@ export interface ExploiterRequestBody {
   params: string;
   vuln_type: string;
   cookies?: Record<string, string>;
+  headers?: Record<string, string>;
+  body_data?: Record<string, unknown>;
+  raw_body?: string;
   method: string;
   ws_id?: string;
   previous_payloads?: string[];
