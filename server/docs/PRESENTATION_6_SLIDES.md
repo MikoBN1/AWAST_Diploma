@@ -1,115 +1,126 @@
-# AWAST Diploma — структура презентации (6 слайдов)
+# AWAST Diploma — Presentation Structure (6 Slides)
 
-## Слайд 1 — Титульный лист
+## Slide 1 — Title Slide
 
-**Тема:** Automated Web Application Security Testing (AWAST) by PTES Methodology  
-**ФИО, группа, кафедра**  
-**Руководитель**  
-**Год / ВУЗ**
+**Topic:** Automated Web Application Security Testing (AWAST) by PTES Methodology  
+**Full Name, Group, Department**  
+**Supervisor**  
+**Year / University**
 
-**Коротко сказать устно (10–15 сек):**  
-Цель ВКР — разработать и проверить подход к автоматизированному подтверждению веб-уязвимостей с использованием ИИ на этапах Exploitation/Post-Exploitation.
+**Short speaking note (10–15 sec):**  
+The goal of this thesis is to design and validate an approach for automated web vulnerability confirmation using AI at the Exploitation/Post-Exploitation stages.
 
 ---
 
-## Слайд 2 — Описание метода исследования & Анализ эмпирического материала
+## Slide 2 — Research Method Description & Empirical Data Analysis
 
-### Метод исследования
+### Research method
 
-- Сравнительный эксперимент: `Baseline (DAST-only)` vs `AI-assisted`.
-- Основа: PTES-логика (фокус на Exploitation/Post-Exploitation).
-- Единица анализа: 1 уязвимая точка (`URL + параметр + тип`).
+- Comparative experiment: `Baseline (DAST-only)` vs `AI-assisted`.
+- Methodological basis: PTES logic (focus on Exploitation/Post-Exploitation).
+- Unit of analysis: one vulnerable point (`URL + parameter + type`).
 
-### Гипотеза
+### Hypothesis
 
-- **H1:** Внедрение ИИ-движка статистически значимо улучшает качество подтверждения уязвимостей и снижает трудозатраты аналитика.
-- **H0:** статистически значимого улучшения нет.
+- **H1:** Integrating an AI engine statistically significantly improves vulnerability confirmation quality and reduces analyst workload.
+- **H0:** there is no statistically significant improvement.
 
-### Эмпирический материал (кейс-выборка)
+### Empirical material (case sample)
 
 - `WebGoat/attack` — XSS: Baseline 0, AI 3.
 - `DVWA/xss_r` — XSS: Baseline 0, AI 2.
-- `localhost:9999/xss_r` — XSS: Baseline 0 (нерабочий payload), AI 3.
+- `localhost:9999/xss_r` — XSS: Baseline 0 (non-working payload), AI 3.
 
 ---
 
-## Слайд 3 — Результаты исследования & Интерпретация результатов
+## Slide 3 — Research Results & Interpretation
 
-### Итоги по данным
+### Data summary
 
-- Суммарно рабочих payload: **Baseline = 0**, **AI = 8**.
-- Прирост: **+8** рабочих payload.
-- Среднее на 1 точку: **0.00 -> 2.67**.
-- AI дал минимум 1 рабочий payload в **100% кейсов** (3/3).
+- Total working payloads: **Baseline = 0**, **AI = 8**.
+- Increase: **+8** working payloads.
+- Mean per vulnerable point: **0.00 -> 2.67**.
+- AI produced at least one working payload in **100% of cases** (3/3).
 
-### Интерпретация
+### Interpretation
 
-- ИИ расширяет пространство эксплуатационных векторов.
-- Снижается риск ситуации "уязвимость найдена, но не подтверждена".
-- Подход особенно полезен там, где шаблонные payload DAST не срабатывают.
+- AI expands the exploitable attack-vector space.
+- It reduces the risk of a “found but not confirmed” vulnerability state.
+- The approach is especially useful when template-based DAST payloads fail.
 
-### Ограничение
+### Limitation
 
-- Текущая выборка мала (`n=3`), требуется расширение для строгой статистики.
+- The current sample size is small (`n=3`), so broader data is required for strict statistical conclusions.
 
 ---
 
-## Слайд 4 — Представление и описание инструмента исследования
+## Slide 4 — Research Tool Presentation and Description
 
-### Инструмент: AWAST (исследовательский комплекс)
+### Tool: AWAST (research framework)
 
 - Backend: `FastAPI`, `SQLAlchemy Async`.
-- DAST-движки: `OWASP ZAP`, `XSStrike`, `SQLMap`.
-- ИИ-модуль: `LLMService` (генерация/мутация payload).
-- Подтверждение эксплуатации: headless browser-проверка.
-- Отчетность: PDF-генерация и хранение результатов.
+- DAST engines: `OWASP ZAP`, `XSStrike`, `SQLMap`.
+- AI module: `LLMService` (payload generation/mutation).
+- Exploitation confirmation: headless browser validation.
+- Reporting: PDF generation and result storage.
 
-### Ценность инструмента
+### Tool value
 
-- Автоматизирует путь: finding -> exploit confirmation.
-- Поддерживает повторяемые эксперименты и сравнительный анализ.
-
----
-
-## Слайд 5 — Прототип проекта
-
-### Что показать на слайде
-
-- Скрин дашборда сканирования.
-- Скрин успешного XSS-срабатывания (диалог `confirm/alert`).
-- Короткий фрагмент таблицы "Baseline vs AI".
-
-### Что проговорить
-
-- Прототип запускает скан, получает finding, генерирует несколько payload, проверяет срабатывание и сохраняет подтвержденный результат.
-- На одном и том же endpoint получаются разные рабочие payload, а не один шаблон.
+- Automates the path: finding -> exploit confirmation.
+- Supports reproducible experiments and comparative analysis.
 
 ---
 
-## Слайд 6 — Реализация и методология проекта
+## Slide 5 — Project Prototype
 
-### Реализация (pipeline)
+### What to show on the slide
 
-1. Сканирование цели (ZAP/XSStrike/SQLMap).
-2. Получение уязвимых параметров.
-3. Генерация набора payload через ИИ.
-4. Автоматическая проверка payload (HTTP + browser behavior).
-5. Фиксация подтвержденных payload и отчет.
+- Screenshot of the scanning dashboard.
+- Screenshot of successful XSS triggering (`confirm/alert` dialog).
+- A short table fragment: “Baseline vs AI”.
 
-### Методология оценки
+### What to say
 
-- Метрики: `N_working_payloads`, `SuccessRate`, `Time-to-confirm`.
-- Дизайн: парное сравнение Baseline vs AI на одинаковых целях.
-- Следующий этап: расширение выборки (20+ точек), статистический тест (Wilcoxon).
-
-### Финальный вывод
-
-- Подход демонстрирует прикладную эффективность и перспективен для масштабирования.
+- The prototype launches a scan, receives findings, generates multiple payloads, validates execution, and stores confirmed results.
+- The same endpoint can be exploited by multiple working payloads, not just one template.
 
 ---
 
-## Дополнительно (если спросят на защите)
+## Slide 6 — Project Implementation and Methodology
 
-- Почему это ново: не просто детекция, а автоматическое подтверждение эксплуатации несколькими независимыми payload.
-- Почему это важно: уменьшает ручную нагрузку аналитика и повышает практическую ценность результатов сканирования.
+### Project pipeline (for the slide diagram)
+
+1. **Target scanning:** `OWASP ZAP` (+ `XSStrike` / `SQLMap` for deeper class-specific checks).
+2. **Finding collection:** extract `URL + parameter + vuln_type` from scan output.
+3. **AI Exploitation:** generate and mutate payload sets for the specific context.
+4. **Automated validation:** send payloads and verify execution (HTTP indicators + browser check).
+5. **Confirmation:** store only working exploit vectors in the database.
+6. **Analytics and reporting:** summary for dashboard/profile + PDF export.
+
+```mermaid
+flowchart LR
+    scanEngines[ScanEngines ZAP XSStrike SQLMap] --> findings[Findings URL parameter vulnType]
+    findings --> aiGen[AIPayloadGeneration Mutation]
+    aiGen --> validation[AutoValidation HTTP Browser]
+    validation --> confirmed[ConfirmedPayloads DB]
+    confirmed --> analytics[Summary Dashboard Profile]
+    confirmed --> report[PDFReport]
+```
+
+### Evaluation methodology
+
+- Metrics: `N_working_payloads`, `SuccessRate`, `Time-to-confirm`.
+- Design: paired comparison of Baseline vs AI on identical targets.
+- Next step: expand the sample (20+ points), apply a statistical test (Wilcoxon).
+
+### Final conclusion
+
+- The approach shows practical effectiveness and strong scaling potential.
+
+---
+
+## Additional notes (for Q&A)
+
+- Why this is novel: not just detection, but automated exploitation confirmation with multiple independent payloads.
+- Why this matters: it reduces manual analyst effort and increases the practical value of scan results.
 

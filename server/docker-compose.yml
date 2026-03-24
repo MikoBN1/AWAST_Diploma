@@ -1,6 +1,15 @@
 version: "3.8"
 
 services:
+  test-victim:
+    build:
+      context: ./test_victim
+      dockerfile: Dockerfile
+    container_name: test-victim
+    ports:
+      - "9999:9999"
+    restart: unless-stopped
+
   zap:
     image: ghcr.io/zaproxy/zaproxy:stable
     container_name: zap
@@ -20,6 +29,8 @@ services:
       -port 8080 
       -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true 
       -config api.key=changeme
+    depends_on:
+      - test-victim
 
   xsstrike:
     build:

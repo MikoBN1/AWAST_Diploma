@@ -3,6 +3,7 @@ import json
 import logging
 from datetime import datetime
 from typing import Dict, Optional, Set
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 from fastapi import HTTPException
@@ -19,6 +20,28 @@ from services.websocket_service import manager
 logger = logging.getLogger(__name__)
 
 _cancelled_scans: Set[str] = set()
+
+
+def _normalize_target_for_zap(target: str) -> str:
+    """
+    Normalize user-provided target so ZAP (running in Docker) can reach it.
+    - localhost/127.0.0.1/::1 with port 9999 -> test-victim (same compose network)
+    - other localhost-like hosts -> host.docker.internal
+    """
+    try:
+        parsed = urlparse(target)
+        hostname = (parsed.hostname or "").lower()
+        if hostname not in {"localhost", "127.0.0.1", "::1"}:
+            return target
+
+        port = parsed.port
+        scheme = parsed.scheme or "http"
+        mapped_host = "test-victim" if port == 9999 else "host.docker.internal"
+        netloc = f"{mapped_host}:{port}" if port else mapped_host
+
+        return urlunparse(parsed._replace(scheme=scheme, netloc=netloc))
+    except Exception:
+        return target
 
 
 def _dedupe_alerts_by_cwe(alerts: list[dict]) -> list[dict]:
@@ -189,11 +212,12 @@ async def _run_sqlmap_scan(target_url: str, cookie_string: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 async def start_spider(target: str) -> dict:
+    effective_target = _normalize_target_for_zap(target)
     async with httpx.AsyncClient(timeout=60.0) as client:
         return await _zap_get(
             client,
             f"{settings.ZAP_API_URL}/JSON/spider/action/scan/",
-            {"apikey": settings.ZAP_API_KEY, "url": target},
+            {"apikey": settings.ZAP_API_KEY, "url": effective_target},
         )
 
 
@@ -226,13 +250,63 @@ async def start_scan(
     cookies: Optional[Dict[str, str]] = None,
 ) -> dict:
     database_service = AsyncDatabaseService(lambda: db)
+    effective_target = _normalize_target_for_zap(target)
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        data = await _zap_get(
-            client,
-            f"{settings.ZAP_API_URL}/JSON/ascan/action/scan/",
-            {"apikey": settings.ZAP_API_KEY, "url": target},
-        )
+        # Make sure target URL is present in ZAP's Sites Tree before active scan.
+        # This prevents "URL Not Found in the Scan Tree" for fresh targets.
+        try:
+            await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/core/action/accessUrl/",
+                {
+                    "apikey": settings.ZAP_API_KEY,
+                    "url": effective_target,
+                    "followRedirects": "true",
+                },
+            )
+        except Exception as ex:
+            logger.warning("ZAP accessUrl preflight failed for %s: %s", effective_target, ex)
+
+        try:
+            data = await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/ascan/action/scan/",
+                {
+                    "apikey": settings.ZAP_API_KEY,
+                    "url": effective_target,
+                    "recurse": "true",
+                    "inScopeOnly": "false",
+                },
+            )
+        except HTTPException as ex:
+            detail = str(getattr(ex, "detail", "")).lower()
+            if "url not found in the scan tree" not in detail:
+                raise
+
+            logger.info(
+                "Retrying ascan after forcing URL into Sites Tree for target=%s",
+                effective_target,
+            )
+            await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/core/action/accessUrl/",
+                {
+                    "apikey": settings.ZAP_API_KEY,
+                    "url": effective_target,
+                    "followRedirects": "true",
+                },
+            )
+            data = await _zap_get(
+                client,
+                f"{settings.ZAP_API_URL}/JSON/ascan/action/scan/",
+                {
+                    "apikey": settings.ZAP_API_KEY,
+                    "url": effective_target,
+                    "recurse": "true",
+                    "inScopeOnly": "false",
+                },
+            )
 
     scan_raw = data.get("scan")
     if scan_raw is None:
@@ -258,14 +332,15 @@ async def start_scan(
 
     has_cookies = bool(cookies)
     logger.info(
-        "Started scan for %s — ZAP runner_id=%s, auth_tools=%s",
-        target, runner_id, has_cookies,
+        "Started scan for target=%s (effective=%s) — ZAP runner_id=%s, auth_tools=%s",
+        target, effective_target, runner_id, has_cookies,
     )
 
     return {
         "scan_id": created_scan.scan_id,
         "scan_index": runner_id,
         "zap_index": runner_id,
+        "effective_target": effective_target,
     }
 
 

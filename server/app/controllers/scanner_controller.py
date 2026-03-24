@@ -34,7 +34,7 @@ async def zap_scan(
     background_tasks.add_task(
         scanner_service.run_scan,
         result["scan_id"],
-        target.target,
+        result.get("effective_target", target.target),
         result["zap_index"],
         target.cookies,
     )
