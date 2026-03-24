@@ -33,7 +33,7 @@ export default {
     },
 
     async getAlertsSummary() {
-        const response = await apiClient.get('/zap/alerts/summary');
+        const response = await apiClient.get('/zap/alerts/summary/db');
         return response.data;
     },
 

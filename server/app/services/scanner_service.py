@@ -6,6 +6,7 @@ from typing import Dict, Optional, Set
 
 import httpx
 from fastapi import HTTPException
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
@@ -338,6 +339,49 @@ async def get_alerts_summary() -> dict:
             f"{settings.ZAP_API_URL}/JSON/core/view/alertsSummary/",
             {"apikey": settings.ZAP_API_KEY},
         )
+
+
+async def get_db_alerts_summary(user_id=None) -> dict:
+    """
+    Build vulnerability summary from persisted DB rows instead of ZAP runtime state.
+    Returns a stable, frontend-friendly shape with all severity buckets present.
+    """
+    from core.database import async_session
+
+    summary = {
+        "Critical": 0,
+        "High": 0,
+        "Medium": 0,
+        "Low": 0,
+        "Informational": 0,
+    }
+
+    async with async_session() as session:
+        stmt = (
+            select(Vulnerability.risk, func.count(Vulnerability.id))
+            .join(Scan, Vulnerability.scan_id == Scan.scan_id)
+            .group_by(Vulnerability.risk)
+        )
+        if user_id is not None:
+            stmt = stmt.where(Scan.user_id == user_id)
+
+        result = await session.execute(stmt)
+        rows = result.all()
+
+    for raw_risk, count in rows:
+        risk = (raw_risk or "").strip().lower()
+        if "critical" in risk:
+            summary["Critical"] += int(count or 0)
+        elif "high" in risk:
+            summary["High"] += int(count or 0)
+        elif "medium" in risk:
+            summary["Medium"] += int(count or 0)
+        elif "low" in risk:
+            summary["Low"] += int(count or 0)
+        else:
+            summary["Informational"] += int(count or 0)
+
+    return summary
 
 
 async def get_alert_by_id(alert_id: str) -> dict:

@@ -61,6 +61,11 @@ async def zap_alerts_summary():
     return await scanner_service.get_alerts_summary()
 
 
+@router.get("/alerts/summary/db", dependencies=[Depends(get_current_user)])
+async def zap_alerts_summary_db(user: User = Depends(get_current_user)):
+    return await scanner_service.get_db_alerts_summary(user.user_id)
+
+
 @router.get("/alerts/{alert_id}", dependencies=[Depends(get_current_user)])
 async def zap_alert_by_id(alert_id: str):
     return await scanner_service.get_alert_by_id(alert_id)
