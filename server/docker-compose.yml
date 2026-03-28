@@ -16,7 +16,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - C:\zap\wrk:/zap/wrk:rw
+      - ./zap_wrk:/zap/wrk:rw
     restart: unless-stopped
     deploy:
       resources:
@@ -38,7 +38,7 @@ services:
       dockerfile: Dockerfile
     container_name: xsstrike
     ports:
-      - "5000:5000"
+      - "5001:5000"
     restart: unless-stopped
     deploy:
       resources:

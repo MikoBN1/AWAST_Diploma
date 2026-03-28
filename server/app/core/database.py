@@ -1,4 +1,3 @@
-import asyncio
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
@@ -12,10 +11,12 @@ async def get_db():
     async with async_session() as session:
         yield session
 
-from models.scan_model import Scan
-from models.vulnerability_model import Vulnerability
-from models.users_model import User
 
 async def init_models():
+    # Import here so `Base` is fully initialized before models load (avoids circular imports).
+    from models.scan_model import Scan  # noqa: F401
+    from models.vulnerability_model import Vulnerability  # noqa: F401
+    from models.users_model import User  # noqa: F401
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
