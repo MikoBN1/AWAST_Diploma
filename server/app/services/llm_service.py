@@ -7,34 +7,78 @@ logger = logging.getLogger(__name__)
 
 class LLMService:
     def __init__(self):
-        self.api_key = settings.GOOGLE_API_KEY
+        self.provider = settings.LLM_PROVIDER.lower()
         self.client = httpx.AsyncClient(timeout=90.0)
-        self.model = "gemini-2.5-flash"
-        self.url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
 
-    async def call_llm(self, prompt: str):
+    async def call_llm(self, prompt: str) -> dict:
+        if self.provider == "groq":
+            return await self._call_groq(prompt)
+        if self.provider == "claude":
+            return await self._call_claude(prompt)
+        return await self._call_gemini(prompt)
+
+    async def _call_gemini(self, prompt: str) -> dict:
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{settings.GEMINI_MODEL}:generateContent?key={settings.GOOGLE_API_KEY}"
+        )
         body = {
-            "contents": [
-                {
-                    "parts": [
-                        {"text": prompt}
-                    ]
-                }
-            ],
-            "generationConfig": {
-                "temperature": 0
-            }
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0},
         }
-
-        resp = await self.client.post(self.url, json=body)
+        resp = await self.client.post(url, json=body)
         resp.raise_for_status()
-        
         data = resp.json()
         try:
             text = data["candidates"][0]["content"]["parts"][0]["text"]
             return {"response": text}
-        except (KeyError, IndexError) as e:
-            logger.error(f"Failed to parse Gemini response: {data}")
+        except (KeyError, IndexError):
+            logger.error("Failed to parse Gemini response: %s", data)
+            return {"response": ""}
+
+    async def _call_groq(self, prompt: str) -> dict:
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "model": settings.GROQ_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+        }
+        resp = await self.client.post(url, json=body, headers=headers)
+        if resp.status_code >= 400:
+            logger.error("Groq error %s: %s", resp.status_code, resp.text)
+        resp.raise_for_status()
+        data = resp.json()
+        try:
+            text = data["choices"][0]["message"]["content"]
+            return {"response": text}
+        except (KeyError, IndexError):
+            logger.error("Failed to parse Groq response: %s", data)
+            return {"response": ""}
+
+    async def _call_claude(self, prompt: str) -> dict:
+        url = "https://api.anthropic.com/v1/messages"
+        headers = {
+            "x-api-key": settings.ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+        body = {
+            "model": settings.ANTHROPIC_MODEL,
+            "max_tokens": 8096,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        resp = await self.client.post(url, json=body, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+        try:
+            text = data["content"][0]["text"]
+            return {"response": text}
+        except (KeyError, IndexError):
+            logger.error("Failed to parse Claude response: %s", data)
             return {"response": ""}
 
     @staticmethod

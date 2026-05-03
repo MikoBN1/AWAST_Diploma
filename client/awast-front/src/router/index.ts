@@ -4,6 +4,7 @@ import LoginView from "../views/LoginView.vue";
 import DashboardView from "../views/DashboardView.vue";
 import ScannerView from "../views/ScannerView.vue";
 import SwaggerAnalysisView from "../views/SwaggerAnalysisView.vue";
+import ApiScannerView from "../views/ApiScannerView.vue";
 
 import ScanHistoryView from "../views/ScanHistoryView.vue";
 import AttackChainView from "../views/AttackChainView.vue";
@@ -34,6 +35,12 @@ const router = createRouter({
             path: '/swagger-analysis',
             name: 'swagger-analysis',
             component: SwaggerAnalysisView,
+            meta: { hideHeader: false }
+        },
+        {
+            path: '/api-scanner',
+            name: 'api-scanner',
+            component: ApiScannerView,
             meta: { hideHeader: false }
         },
         {

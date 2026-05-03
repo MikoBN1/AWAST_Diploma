@@ -1,4 +1,7 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 class Settings(BaseSettings):
     ZAP_API_KEY: str = "changeme"
@@ -9,11 +12,22 @@ class Settings(BaseSettings):
     SQLMAP_API_URL: str = "http://localhost:8775"
 
     DATABASE_URL: str
+    FRONTEND_URL: str = "http://localhost:5173"
+
+    # LLM provider selection: gemini | groq | claude
+    LLM_PROVIDER: str = "gemini"
+
     GOOGLE_API_KEY: str = ""
-    FRONTEND_URL: str = "http://localhost:5173"  # Default Vue.js local dev port
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_ENV_FILE),
         env_file_encoding="utf-8",
         extra="ignore"
     )

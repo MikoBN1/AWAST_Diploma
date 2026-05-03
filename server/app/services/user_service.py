@@ -61,8 +61,7 @@ async def update_user(user_id: str, user_data: UserUpdate) -> UserOut:
     update_data = {k: v for k, v in user_data.model_dump().items() if v is not None}
 
     if "password" in update_data:
-        hashed_password = pwd_context.hash(update_data.pop("password"))
-        existing_user.password_hash = hashed_password
+        update_data["password_hash"] = pwd_context.hash(update_data.pop("password"))
 
     result = await database_service.update(User, {"user_id" : user_id}, update_data)
 
