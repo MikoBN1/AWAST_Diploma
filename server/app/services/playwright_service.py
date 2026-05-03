@@ -2,6 +2,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import UnexpectedAlertPresentException, NoAlertPresentException
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 import json
@@ -96,8 +97,9 @@ def check_dom_xss(
     timeout: int = 15
 ) -> Tuple[bool, str]:
     """
-    Checks if a URL (with payload) triggers an alert dialog or other indicators of XSS.
-    Returns (is_vulnerable, message)
+    Checks if a URL (with payload) triggers JS execution (XSS).
+    Uses CDP to intercept window.alert/confirm/prompt before the page loads,
+    so detection works regardless of how Selenium handles dialog boxes.
     """
     driver = None
     try:
@@ -106,7 +108,6 @@ def check_dom_xss(
             chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--window-size=800,600")
         chrome_options.add_argument("--disable-gpu")
-        # To avoid being blocked by some WAFs or security headers in headless mode
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
 
         driver = webdriver.Chrome(
@@ -115,9 +116,25 @@ def check_dom_xss(
         )
         driver.set_page_load_timeout(timeout)
 
-        # Set cookies if provided
+        # Intercept alert/confirm/prompt via CDP before any page loads.
+        # addScriptToEvaluateOnNewDocument runs on every navigation in this session,
+        # so autofocus/onload/onerror payloads are captured even when they fire
+        # synchronously during page load (before Selenium can switch_to.alert).
+        driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+            "source": """
+                window._awast_xss = false;
+                window._awast_msg = '';
+                const _capture = function(msg) {
+                    window._awast_xss = true;
+                    window._awast_msg = String(msg !== undefined ? msg : '(no message)');
+                };
+                window.alert   = _capture;
+                window.confirm = function(m) { _capture(m); return true; };
+                window.prompt  = function(m) { _capture(m); return ''; };
+            """
+        })
+
         if cookies:
-            # We need to be on the domain to set cookies
             try:
                 domain_url = f"{urlparse(url).scheme}://{urlparse(url).netloc}/"
                 driver.get(domain_url)
@@ -126,27 +143,46 @@ def check_dom_xss(
             except Exception as ce:
                 print(f"[!] Warning: Could not set cookies: {ce}")
 
-        # Navigate to the target URL with payload
-        driver.get(url)
-        
-        # Give it a moment to execute JS
-        time.sleep(3)
-
-        is_vulnerable = False
-        message = "No alert detected."
-
         try:
-            # Check for alert
-            alert = driver.switch_to.alert
-            alert_text = alert.text
-            is_vulnerable = True
-            message = f"XSS Triggered! Alert text: {alert_text}"
-            alert.accept()
-        except:
-            # No alert, check if payload is in DOM but maybe not executed
-            pass
+            driver.get(url)
+        except UnexpectedAlertPresentException:
+            # Fallback: alert dialog appeared before CDP intercept could catch it
+            try:
+                alert = driver.switch_to.alert
+                alert_text = alert.text
+                alert.accept()
+                return True, f"XSS Triggered during page load! Alert: {alert_text}"
+            except Exception:
+                return True, "XSS Triggered during page load!"
 
-        return is_vulnerable, message
+        # Poll every 100ms for up to 2500ms (mirrors JS checkForMockAlert)
+        poll_interval = 0.1
+        poll_timeout = 2.5
+        elapsed = 0.0
+        while elapsed < poll_timeout:
+            # Primary check: did our interceptor catch a JS call?
+            try:
+                if driver.execute_script("return window._awast_xss === true;"):
+                    msg = driver.execute_script("return window._awast_msg;") or ""
+                    return True, f"XSS Triggered! JS executed: alert('{msg}')"
+            except Exception:
+                pass
+
+            # Fallback: real pending alert dialog
+            try:
+                alert = driver.switch_to.alert
+                alert_text = alert.text
+                alert.accept()
+                return True, f"XSS Triggered! Alert text: {alert_text}"
+            except NoAlertPresentException:
+                pass
+            except Exception:
+                pass
+
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+
+        return False, "No alert detected."
 
     except Exception as e:
         return False, f"Error during DOM XSS check: {str(e)}"
