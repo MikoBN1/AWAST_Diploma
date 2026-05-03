@@ -10,21 +10,21 @@ class LLMService:
         self.provider = settings.LLM_PROVIDER.lower()
         self.client = httpx.AsyncClient(timeout=90.0)
 
-    async def call_llm(self, prompt: str) -> dict:
+    async def call_llm(self, prompt: str, temperature: float = 0.0) -> dict:
         if self.provider == "groq":
-            return await self._call_groq(prompt)
+            return await self._call_groq(prompt, temperature)
         if self.provider == "claude":
-            return await self._call_claude(prompt)
-        return await self._call_gemini(prompt)
+            return await self._call_claude(prompt, temperature)
+        return await self._call_gemini(prompt, temperature)
 
-    async def _call_gemini(self, prompt: str) -> dict:
+    async def _call_gemini(self, prompt: str, temperature: float = 0.0) -> dict:
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
             f"{settings.GEMINI_MODEL}:generateContent?key={settings.GOOGLE_API_KEY}"
         )
         body = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0},
+            "generationConfig": {"temperature": temperature},
         }
         resp = await self.client.post(url, json=body)
         resp.raise_for_status()
@@ -36,7 +36,7 @@ class LLMService:
             logger.error("Failed to parse Gemini response: %s", data)
             return {"response": ""}
 
-    async def _call_groq(self, prompt: str) -> dict:
+    async def _call_groq(self, prompt: str, temperature: float = 0.0) -> dict:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
@@ -45,7 +45,7 @@ class LLMService:
         body = {
             "model": settings.GROQ_MODEL,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0,
+            "temperature": temperature,
         }
         resp = await self.client.post(url, json=body, headers=headers)
         if resp.status_code >= 400:
@@ -59,7 +59,7 @@ class LLMService:
             logger.error("Failed to parse Groq response: %s", data)
             return {"response": ""}
 
-    async def _call_claude(self, prompt: str) -> dict:
+    async def _call_claude(self, prompt: str, temperature: float = 0.0) -> dict:
         url = "https://api.anthropic.com/v1/messages"
         headers = {
             "x-api-key": settings.ANTHROPIC_API_KEY,
@@ -69,6 +69,7 @@ class LLMService:
         body = {
             "model": settings.ANTHROPIC_MODEL,
             "max_tokens": 8096,
+            "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
         resp = await self.client.post(url, json=body, headers=headers)
@@ -115,58 +116,40 @@ CRITICAL FORMATTING RULES:
             param_hint = ""
             p = params.lower()
             if any(k in p for k in ["src", "href", "style", "action", "data"]):
-                param_hint = f"The parameter '{params}' is likely an HTML attribute — prioritise attribute-breakout payloads."
+                param_hint = f"The parameter '{params}' is likely used in an HTML attribute — prioritise attribute-breakout payloads."
             elif any(k in p for k in ["callback", "jsonp", "json"]):
                 param_hint = f"The parameter '{params}' suggests a JSONP/callback context — craft payloads for that context."
-            return f"""You are an expert XSS penetration tester.
+            return f"""You are an expert XSS penetration tester. Be creative — produce UNIQUE payloads every time.
 {header}
 {param_hint}
 
-Generate exactly 5 UNIQUE XSS payloads, one per injection context — in this order:
+Generate exactly 5 UNIQUE XSS payloads covering these 5 distinct injection contexts:
 
-1. HTML attribute breakout — close the current attribute with a quote, inject an auto-firing event handler, neutralise the rest.
+1. HTML attribute breakout — break out of the current attribute and inject an auto-firing event handler.
    The value is typically reflected inside value="INJECT" or similar.
-   GOOD (auto-fire, no user interaction needed):
-     " autofocus onfocus="alert(document.domain)" x="
-     " onerror="alert(document.domain)" src="x
-     "><svg onload=alert(document.domain)>
-   BAD — do NOT use these (require user interaction):
-     onmouseover, onclick, onmouseenter, ondblclick, onmouseout
+   Craft something creative using event handlers like onfocus+autofocus, onerror, onanimationstart, ontoggle, etc.
 
-2. Standalone tag with event handler — inject a new tag that fires JS without closing anything first.
-   Good examples:
-     <svg onload=alert(document.domain)>
-     <img src=x onerror=alert(document.domain)>
-     <body onload=alert(document.domain)>
+2. Standalone tag injection — inject a brand-new HTML/SVG/MathML tag that auto-fires JS.
+   Think beyond <img> and <svg>; try <details ontoggle>, <video>, <audio>, <object>, <iframe srcdoc>, <math>, etc.
 
-3. JavaScript context breakout — close the current JS string/statement, inject JS, comment out the rest.
+3. JavaScript context breakout — break out of a JS string or statement and inject code.
    The value is typically reflected inside var x="INJECT" or similar.
-   Good examples:
-     ';alert(document.domain)//
-     \";alert(document.domain)//
-     </script><script>alert(document.domain)</script>
+   Vary the quote style, use template literals, semicolons, line terminators, etc.
 
 4. JavaScript URI injection — for href/src/action/redirect parameters.
-   Good examples:
-     javascript:alert(document.domain)
-     javascript:void(alert(document.domain))
+   Vary the encoding: raw, HTML-entity, percent-encoded, unicode escapes, etc.
 
-5. Obfuscated / WAF-bypass — encoding, mixed case, or eval tricks to evade filters.
-   Good examples:
-     <img src=x onerror=&#x61;lert(document.domain)>
-     <ScRiPt>alert(document.domain)</ScRiPt>
-     <svg/onload=eval(atob('YWxlcnQoZG9jdW1lbnQuZG9tYWluKQ=='))>
+5. Obfuscated / WAF-bypass — use a technique that evades simple pattern matching.
+   Ideas: HTML entity encoding, String.fromCharCode, eval(atob(...)), CSS injection, SVG animate, DOM clobbering, etc.
 
 RULES:
-- Use alert(document.domain) — it proves real XSS impact better than alert(1).
-- ALL payloads must fire WITHOUT any user interaction (no mouse/click events).
-- Allowed auto-firing events: onload, onerror, onfocus+autofocus, onanimationstart, ontoggle.
-- FORBIDDEN events: onmouseover, onclick, onmouseenter, ondblclick, onmouseout, onmouseup.
-- Payloads for context 1 MUST start by closing the attribute quote (" or ').
-- Each payload must target a DIFFERENT context — no two payloads the same technique.
-- Output ONLY the 5 payloads wrapped in curly braces, nothing else.
-
-Example: {{"" autofocus onfocus="alert(document.domain)" x=""}} {{<svg onload=alert(document.domain)>}} {{';alert(document.domain)//}} {{javascript:alert(document.domain)}} {{<img src=x onerror=&#x61;lert(document.domain)>}}"""
+- Use alert(document.domain) as the JS payload — proves real impact.
+- ALL payloads must fire WITHOUT user interaction (no mouse/click/hover events).
+- Allowed auto-firing triggers: onload, onerror, onfocus+autofocus, onanimationstart, ontoggle, oncanplay, onloadstart.
+- FORBIDDEN: onmouseover, onclick, onmouseenter, ondblclick, onmouseout, onmouseup, onmousemove.
+- Each payload must use a genuinely different tag, event, or encoding technique.
+- Do NOT reuse the same tag+event combination across payloads.
+- Output ONLY the 5 payloads wrapped in curly braces, nothing else."""
 
         if "SQL" in vuln_upper:
             return f"""You are an expert SQL injection penetration tester.
@@ -304,12 +287,13 @@ Do NOT repeat minor variations of the same payload."""
         previous_text = ""
         if previous_payloads:
             previous_text = (
-                "PREVIOUSLY ATTEMPTED PAYLOADS (DO NOT USE THESE AGAIN):\n"
+                "PREVIOUSLY ATTEMPTED PAYLOADS (DO NOT USE THESE AGAIN — be creative, pick different techniques):\n"
                 + "\n".join(f"- {p}" for p in previous_payloads)
             )
 
         prompt = self._build_payload_prompt(target, vuln_type, params, previous_text)
-        llm_response = await self.call_llm(prompt)
+        # High temperature so each run produces different payloads
+        llm_response = await self.call_llm(prompt, temperature=0.9)
         payloads = self.extract_payloads_from_text(llm_response["response"])
         return payloads
 
