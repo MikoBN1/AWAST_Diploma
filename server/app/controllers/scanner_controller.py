@@ -2,7 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, WebSocket, WebSocketDis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.security import get_current_user
+from core.security import check_domain_permission_from_body, get_current_user
 from models.users_model import User
 from schemas.zap_scanner_schema import RequestBody
 import services.scanner_service as scanner_service
@@ -11,8 +11,8 @@ from services.websocket_service import manager
 router = APIRouter(prefix="/zap", tags=["scanner"])
 
 
-@router.post("/spider", dependencies=[Depends(get_current_user)])
-async def zap_spider(target: RequestBody):
+@router.post("/spider")
+async def zap_spider(target: RequestBody, user: User = Depends(check_domain_permission_from_body)):
     return await scanner_service.start_spider(target.target)
 
 
@@ -25,7 +25,7 @@ async def zap_spider_status(scan_id: str):
 async def zap_scan(
     target: RequestBody,
     background_tasks: BackgroundTasks,
-    user: User = Depends(get_current_user),
+    user: User = Depends(check_domain_permission_from_body),
     db: AsyncSession = Depends(get_db)
 ):
     result = await scanner_service.start_scan(
